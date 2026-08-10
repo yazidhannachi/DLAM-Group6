@@ -1,0 +1,45 @@
+preprocessing:
+  scaler: "standard"
+  scaler_kwargs: {}
+  imputer: "iterative"
+  imputer_kwargs: {}
+  mice_estimator: "ridge"
+  mice_estimator_kwargs: {}
+  indicator_kwargs: {}
+  scale_columns: 
+    - "hour_sin"
+    - "hour_cos" 
+    - "dow_sin"
+    - "dow_cos"
+    - "trend"
+    - "workload_intensity"
+    - "demand_forecast"
+    - "staffing_forecast"
+    - 'upstream_quality_forecast'
+    - 'promotion_intensity'
+    - 'shock_risk'
+    - 'maintenance_known'
+    - 'unit_reliability_forecast'
+    - 'queue_pressure_forecast'
+    - 'network_pressure_forecast'
+    - 'event_load_forecast'
+    - 'service_irregularity_risk_forecast'
+    - 'throughput_disruption_risk_forecast'
+  simple_impute_columns:
+    - staffing_forecast
+  other_impute_columns:
+    - "demand_forecast"
+    - 'upstream_quality_forecast'
+    - 'shock_risk'
+    - 'unit_reliability_forecast'
+    - 'queue_pressure_forecast'
+    - 'network_pressure_forecast'
+    - 'event_load_forecast'
+    - 'service_irregularity_risk_forecast'
+    - 'throughput_disruption_risk_forecast'
+  missing_indicator_columns: []
+  #convert_to_categorical:
+    #- "maintenance_known"
+model: {}
+training: {}
+data: {}
