@@ -1,0 +1,3 @@
+[submodule "external/xLSTM-Mixer"]
+	path = external/xLSTM-Mixer
+	url = https://github.com/mauricekraus/xLSTM-Mixer.git

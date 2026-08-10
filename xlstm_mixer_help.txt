@@ -1,0 +1,742 @@
+usage: __main__.py [options] fit [-c CONFIG]
+                                 [--seed_everything SEED_EVERYTHING]
+                                 [--trainer CONFIG]
+                                 [--trainer.accelerator ACCELERATOR]
+                                 [--trainer.strategy STRATEGY]
+                                 [--trainer.devices DEVICES]
+                                 [--trainer.num_nodes NUM_NODES]
+                                 [--trainer.precision PRECISION]
+                                 [--trainer.logger LOGGER]
+                                 [--trainer.callbacks CALLBACKS]
+                                 [--trainer.fast_dev_run FAST_DEV_RUN]
+                                 [--trainer.max_epochs MAX_EPOCHS]
+                                 [--trainer.min_epochs MIN_EPOCHS]
+                                 [--trainer.max_steps MAX_STEPS]
+                                 [--trainer.min_steps MIN_STEPS]
+                                 [--trainer.max_time MAX_TIME]
+                                 [--trainer.limit_train_batches LIMIT_TRAIN_BATCHES]
+                                 [--trainer.limit_val_batches LIMIT_VAL_BATCHES]
+                                 [--trainer.limit_test_batches LIMIT_TEST_BATCHES]
+                                 [--trainer.limit_predict_batches LIMIT_PREDICT_BATCHES]
+                                 [--trainer.overfit_batches OVERFIT_BATCHES]
+                                 [--trainer.val_check_interval VAL_CHECK_INTERVAL]
+                                 [--trainer.check_val_every_n_epoch CHECK_VAL_EVERY_N_EPOCH]
+                                 [--trainer.num_sanity_val_steps NUM_SANITY_VAL_STEPS]
+                                 [--trainer.log_every_n_steps LOG_EVERY_N_STEPS]
+                                 [--trainer.enable_checkpointing {true,false,null}]
+                                 [--trainer.enable_progress_bar {true,false,null}]
+                                 [--trainer.enable_model_summary {true,false,null}]
+                                 [--trainer.accumulate_grad_batches ACCUMULATE_GRAD_BATCHES]
+                                 [--trainer.gradient_clip_val GRADIENT_CLIP_VAL]
+                                 [--trainer.gradient_clip_algorithm GRADIENT_CLIP_ALGORITHM]
+                                 [--trainer.deterministic DETERMINISTIC]
+                                 [--trainer.benchmark {true,false,null}]
+                                 [--trainer.inference_mode {true,false}]
+                                 [--trainer.use_distributed_sampler {true,false}]
+                                 [--trainer.profiler PROFILER]
+                                 [--trainer.detect_anomaly {true,false}]
+                                 [--trainer.barebones {true,false}]
+                                 [--trainer.plugins PLUGINS]
+                                 [--trainer.sync_batchnorm {true,false}]
+                                 [--trainer.reload_dataloaders_every_n_epochs RELOAD_DATALOADERS_EVERY_N_EPOCHS]
+                                 [--trainer.default_root_dir DEFAULT_ROOT_DIR]
+                                 [--trainer.enable_autolog_hparams {true,false}]
+                                 [--trainer.model_registry MODEL_REGISTRY]
+                                 [--model CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE]
+                                 [--data CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE]
+                                 [--optimizer CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE]
+                                 [--lr_scheduler CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE]
+                                 [--rich_model_summary CONFIG]
+                                 [--rich_model_summary.max_depth MAX_DEPTH]
+                                 [--model_checkpoint CONFIG]
+                                 [--model_checkpoint.dirpath DIRPATH]
+                                 [--model_checkpoint.filename FILENAME]
+                                 [--model_checkpoint.monitor MONITOR]
+                                 [--model_checkpoint.verbose {true,false}]
+                                 [--model_checkpoint.save_last SAVE_LAST]
+                                 [--model_checkpoint.save_top_k SAVE_TOP_K]
+                                 [--model_checkpoint.save_on_exception {true,false}]
+                                 [--model_checkpoint.save_weights_only {true,false}]
+                                 [--model_checkpoint.mode MODE]
+                                 [--model_checkpoint.auto_insert_metric_name {true,false}]
+                                 [--model_checkpoint.every_n_train_steps EVERY_N_TRAIN_STEPS]
+                                 [--model_checkpoint.train_time_interval TRAIN_TIME_INTERVAL]
+                                 [--model_checkpoint.every_n_epochs EVERY_N_EPOCHS]
+                                 [--model_checkpoint.save_on_train_epoch_end {true,false,null}]
+                                 [--model_checkpoint.enable_version_counter {true,false}]
+                                 [--lr_monitor CONFIG]
+                                 [--lr_monitor.logging_interval LOGGING_INTERVAL]
+                                 [--lr_monitor.log_momentum {true,false}]
+                                 [--lr_monitor.log_weight_decay {true,false}]
+                                 [--ckpt_path CKPT_PATH]
+                                 [--weights_only {true,false,null}]
+
+Runs the full optimization routine.
+
+options:
+  -h, --help            Show this help message and exit.
+  -c CONFIG, --config CONFIG
+                        Path to a configuration file in json or yaml format.
+  --print_config [=flags]
+                        Print the configuration after applying all other
+                        arguments and exit. The optional flags customizes the
+                        output and are one or more keywords separated by
+                        comma. The supported flags are: skip_default,
+                        skip_null.
+  --seed_everything SEED_EVERYTHING
+                        Set to an int to run seed_everything with this value
+                        before classes instantiation.Set to True to use a
+                        random seed. (type: Union[bool, int], default: 2021)
+
+Customize every aspect of training via flags:
+  --trainer CONFIG      Path to a configuration file.
+  --trainer.accelerator.help [CLASS_PATH_OR_NAME]
+                        Show the help for the given subclass of Accelerator
+                        and exit.
+  --trainer.accelerator ACCELERATOR
+                        Supports passing different accelerator types ("cpu",
+                        "gpu", "tpu", "hpu", "mps", "auto") as well as custom
+                        accelerator instances. (type: Union[str, Accelerator],
+                        default: auto, known subclasses:
+                        lightning.pytorch.accelerators.CPUAccelerator,
+                        lightning.pytorch.accelerators.CUDAAccelerator,
+                        lightning.pytorch.accelerators.MPSAccelerator,
+                        lightning.pytorch.accelerators.XLAAccelerator)
+  --trainer.strategy.help [CLASS_PATH_OR_NAME]
+                        Show the help for the given subclass of Strategy and
+                        exit.
+  --trainer.strategy STRATEGY
+                        Supports different training strategies with aliases as
+                        well custom strategies. Default: ``"auto"``. (type:
+                        Union[str, Strategy], default: auto, known subclasses:
+                        lightning.pytorch.strategies.DDPStrategy,
+                        lightning.pytorch.strategies.DeepSpeedStrategy,
+                        lightning.pytorch.strategies.XLAStrategy,
+                        lightning.pytorch.strategies.FSDPStrategy,
+                        lightning.pytorch.strategies.ModelParallelStrategy,
+                        lightning.pytorch.strategies.SingleDeviceStrategy,
+                        lightning.pytorch.strategies.SingleDeviceXLAStrategy)
+  --trainer.devices DEVICES, --trainer.devices+ DEVICES
+                        The devices to use. Can be set to a positive number
+                        (int or str), a sequence of device indices (list or
+                        str), the value ``-1`` to indicate all available
+                        devices should be used, or ``"auto"`` for automatic
+                        selection based on the chosen accelerator. Default:
+                        ``"auto"``. (type: Union[list[int], str, int],
+                        default: auto)
+  --trainer.num_nodes NUM_NODES
+                        Number of GPU nodes for distributed training. Default:
+                        ``1``. (type: int, default: 1)
+  --trainer.precision PRECISION
+                        Double precision (64, '64' or '64-true'), full
+                        precision (32, '32' or '32-true'), 16bit mixed
+                        precision (16, '16', '16-mixed') or bfloat16 mixed
+                        precision ('bf16', 'bf16-mixed'). Can be used on CPU,
+                        GPU, TPUs, or HPUs. Default: ``'32-true'``. (type:
+                        Union[Literal[64, 32, 16], Literal['transformer-
+                        engine', 'transformer-engine-float16', '16-true',
+                        '16-mixed', 'bf16-true', 'bf16-mixed', '32-true',
+                        '64-true'], Literal['64', '32', '16', 'bf16'], null],
+                        default: null)
+  --trainer.logger.help CLASS_PATH_OR_NAME
+                        Show the help for the given subclass of Logger and
+                        exit.
+  --trainer.logger LOGGER, --trainer.logger+ LOGGER
+                        Logger (or iterable collection of loggers) for
+                        experiment tracking. A ``True`` value uses the default
+                        ``TensorBoardLogger`` if it is installed, otherwise
+                        ``CSVLogger``. ``False`` will disable logging. If
+                        multiple loggers are provided, local files
+                        (checkpoints, profiler traces, etc.) are saved in the
+                        ``log_dir`` of the first logger. Default: ``True``.
+                        (type: Union[Logger, Iterable[Logger], bool, null],
+                        default: {'class_path':
+                        'lightning.pytorch.loggers.WandbLogger', 'init_args':
+                        {'project': 'xlstm_mixer', 'group': 'h-methods'}},
+                        known subclasses:
+                        lightning.pytorch.loggers.logger.DummyLogger,
+                        lightning.pytorch.loggers.CometLogger,
+                        lightning.pytorch.loggers.CSVLogger,
+                        lightning.pytorch.loggers.MLFlowLogger,
+                        lightning.pytorch.loggers.TensorBoardLogger,
+                        lightning.pytorch.loggers.WandbLogger)
+  --trainer.callbacks.help CLASS_PATH_OR_NAME
+                        Show the help for the given subclass of Callback and
+                        exit.
+  --trainer.callbacks CALLBACKS, --trainer.callbacks+ CALLBACKS
+                        Add a callback or list of callbacks. Default:
+                        ``None``. (type: Union[list[Callback], Callback,
+                        null], default: null, known subclasses:
+                        lightning.Callback,
+                        lightning.pytorch.callbacks.BatchSizeFinder,
+                        lightning.pytorch.callbacks.Checkpoint,
+                        lightning.pytorch.callbacks.ModelCheckpoint,
+                        lightning.pytorch.callbacks.OnExceptionCheckpoint,
+                        lightning.pytorch.callbacks.DeviceStatsMonitor,
+                        lightning.pytorch.callbacks.EarlyStopping,
+                        xlstm_mixer.cli.PyTorchLightningPruningCallback,
+                        lightning.pytorch.callbacks.BaseFinetuning,
+                        lightning.pytorch.callbacks.BackboneFinetuning,
+                        xlstm_mixer.cli_helper.FeatureExtractorFreezeUnfreeze,
+                        lightning.pytorch.callbacks.GradientAccumulationSchedu
+                        ler, lightning.pytorch.callbacks.LambdaCallback,
+                        lightning.pytorch.callbacks.LearningRateFinder,
+                        lightning.pytorch.callbacks.LearningRateMonitor,
+                        lightning.pytorch.callbacks.ModelSummary,
+                        lightning.pytorch.callbacks.RichModelSummary,
+                        lightning.pytorch.callbacks.BasePredictionWriter,
+                        lightning.pytorch.callbacks.ProgressBar,
+                        lightning.pytorch.callbacks.RichProgressBar,
+                        lightning.pytorch.callbacks.TQDMProgressBar,
+                        lightning.pytorch.callbacks.Timer,
+                        lightning.pytorch.callbacks.ModelPruning,
+                        lightning.pytorch.callbacks.SpikeDetection,
+                        lightning.pytorch.callbacks.StochasticWeightAveraging,
+                        lightning.pytorch.callbacks.ThroughputMonitor,
+                        lightning.pytorch.callbacks.WeightAveraging,
+                        lightning.pytorch.callbacks.EMAWeightAveraging, xlstm_
+                        mixer.lit.forecast_visualize_cb.ForecastVisualizeCallb
+                        ack, lightning.pytorch.cli.SaveConfigCallback,
+                        xlstm_mixer.cli_helper.LoggerSaveConfigCallback)
+  --trainer.fast_dev_run FAST_DEV_RUN
+                        Runs n if set to ``n`` (int) else 1 if set to ``True``
+                        batch(es) of train, val and test to find any bugs (ie:
+                        a sort of unit test). Default: ``False``. (type:
+                        Union[int, bool], default: False)
+  --trainer.max_epochs MAX_EPOCHS
+                        Stop training once this number of epochs is reached.
+                        Disabled by default (None). If both max_epochs and
+                        max_steps are not specified, defaults to ``max_epochs
+                        = 1000``. To enable infinite training, set
+                        ``max_epochs = -1``. (type: Optional[int], default:
+                        30)
+  --trainer.min_epochs MIN_EPOCHS
+                        Force training for at least these many epochs.
+                        Disabled by default (None). (type: Optional[int],
+                        default: null)
+  --trainer.max_steps MAX_STEPS
+                        Stop training after this number of steps. Disabled by
+                        default (-1). If ``max_steps = -1`` and ``max_epochs =
+                        None``, will default to ``max_epochs = 1000``. To
+                        enable infinite training, set ``max_epochs`` to
+                        ``-1``. (type: int, default: -1)
+  --trainer.min_steps MIN_STEPS
+                        Force training for at least these number of steps.
+                        Disabled by default (``None``). (type: Optional[int],
+                        default: null)
+  --trainer.max_time MAX_TIME
+                        Stop training after this amount of time has passed.
+                        Disabled by default (``None``). The time duration can
+                        be specified in the format DD:HH:MM:SS (days, hours,
+                        minutes seconds), as a :class:`datetime.timedelta`, or
+                        a dictionary with keys that will be passed to
+                        :class:`datetime.timedelta`. (type: Union[str,
+                        timedelta, dict[str, int], null], default: null)
+  --trainer.limit_train_batches LIMIT_TRAIN_BATCHES
+                        How much of training dataset to check (float =
+                        fraction, int = num_batches). Value is per device.
+                        Default: ``1.0``. (type: Union[int, float, null],
+                        default: null)
+  --trainer.limit_val_batches LIMIT_VAL_BATCHES
+                        How much of validation dataset to check (float =
+                        fraction, int = num_batches). Value is per device.
+                        Default: ``1.0``. (type: Union[int, float, null],
+                        default: null)
+  --trainer.limit_test_batches LIMIT_TEST_BATCHES
+                        How much of test dataset to check (float = fraction,
+                        int = num_batches). Value is per device. Default:
+                        ``1.0``. (type: Union[int, float, null], default:
+                        null)
+  --trainer.limit_predict_batches LIMIT_PREDICT_BATCHES
+                        How much of prediction dataset to check (float =
+                        fraction, int = num_batches). Value is per device.
+                        Default: ``1.0``. (type: Union[int, float, null],
+                        default: null)
+  --trainer.overfit_batches OVERFIT_BATCHES
+                        Overfit a fraction of training/validation data (float)
+                        or a set number of batches (int). Default: ``0.0``.
+                        (type: Union[int, float], default: 0.0)
+  --trainer.val_check_interval VAL_CHECK_INTERVAL
+                        How often to check the validation set. Pass a
+                        ``float`` in the range [0.0, 1.0] to check after a
+                        fraction of the training epoch. Pass an ``int`` to
+                        check after a fixed number of training batches. An
+                        ``int`` value can only be higher than the number of
+                        training batches when
+                        ``check_val_every_n_epoch=None``, which validates
+                        after every ``N`` training batches across epochs or
+                        during iteration-based training. Additionally, accepts
+                        a time-based duration as a string "DD:HH:MM:SS", a
+                        :class:`datetime.timedelta`, or a dict of kwargs to
+                        :class:`datetime.timedelta`. When time-based,
+                        validation triggers once the elapsed wall-clock time
+                        since the last validation exceeds the interval; the
+                        check occurs after the current batch completes, the
+                        validation loop runs, and the timer is reset. Default:
+                        ``1.0``. (type: Union[int, float, str, timedelta,
+                        dict[str, int], null], default: null)
+  --trainer.check_val_every_n_epoch CHECK_VAL_EVERY_N_EPOCH
+                        Perform a validation loop after every `N` training
+                        epochs. If ``None``, validation will be done solely
+                        based on the number of training batches, requiring
+                        ``val_check_interval`` to be an integer value. When
+                        used together with a time-based ``val_check_interval``
+                        and ``check_val_every_n_epoch`` > 1, validation is
+                        aligned to epoch multiples: if the interval elapses
+                        before the next multiple-N epoch, validation runs at
+                        the start of that epoch (after the first batch) and
+                        the timer resets; if it elapses during a multiple-N
+                        epoch, validation runs after the current batch. For
+                        ``None`` or ``1`` cases, the time-based behavior of
+                        ``val_check_interval`` applies without additional
+                        alignment. Default: ``1``. (type: Optional[int],
+                        default: 1)
+  --trainer.num_sanity_val_steps NUM_SANITY_VAL_STEPS
+                        Sanity check runs n validation batches before starting
+                        the training routine. Set it to `-1` to run all
+                        batches in all validation dataloaders. Default: ``2``.
+                        (type: Optional[int], default: null)
+  --trainer.log_every_n_steps LOG_EVERY_N_STEPS
+                        How often to log within steps. Default: ``50``. (type:
+                        Optional[int], default: null)
+  --trainer.enable_checkpointing {true,false,null}
+                        If ``True``, enable checkpointing. It will configure a
+                        default ModelCheckpoint callback if there is no user-
+                        defined ModelCheckpoint in :paramref:`~lightning.pytor
+                        ch.trainer.trainer.Trainer.callbacks`. Default:
+                        ``True``. (type: Optional[bool], default: null)
+  --trainer.enable_progress_bar {true,false,null}
+                        Whether to enable to progress bar by default. Default:
+                        ``True``. (type: Optional[bool], default: null)
+  --trainer.enable_model_summary {true,false,null}
+                        Whether to enable model summarization by default.
+                        Default: ``True``. (type: Optional[bool], default:
+                        null)
+  --trainer.accumulate_grad_batches ACCUMULATE_GRAD_BATCHES
+                        Accumulates gradients over k batches before stepping
+                        the optimizer. Default: 1. (type: int, default: 1)
+  --trainer.gradient_clip_val GRADIENT_CLIP_VAL
+                        The value at which to clip gradients. Passing
+                        ``gradient_clip_val=None`` disables gradient clipping.
+                        If using Automatic Mixed Precision (AMP), the
+                        gradients will be unscaled before. Default: ``None``.
+                        (type: Union[int, float, null], default: 1.0)
+  --trainer.gradient_clip_algorithm GRADIENT_CLIP_ALGORITHM
+                        The gradient clipping algorithm to use. Pass
+                        ``gradient_clip_algorithm="value"`` to clip by value,
+                        and ``gradient_clip_algorithm="norm"`` to clip by
+                        norm. By default it will be set to ``"norm"``. (type:
+                        Optional[str], default: null)
+  --trainer.deterministic DETERMINISTIC
+                        If ``True``, sets whether PyTorch operations must use
+                        deterministic algorithms. Set to ``"warn"`` to use
+                        deterministic algorithms whenever possible, throwing
+                        warnings on operations that don't support
+                        deterministic mode. If not set, defaults to ``False``.
+                        Default: ``None``. (type: Union[bool, Literal['warn'],
+                        null], default: null)
+  --trainer.benchmark {true,false,null}
+                        The value (``True`` or ``False``) to set
+                        ``torch.backends.cudnn.benchmark`` to. The value for
+                        ``torch.backends.cudnn.benchmark`` set in the current
+                        session will be used (``False`` if not manually set).
+                        If :paramref:`~lightning.pytorch.trainer.trainer.Train
+                        er.deterministic` is set to ``True``, this will
+                        default to ``False``. Override to manually set a
+                        different value. Default: ``None``. (type:
+                        Optional[bool], default: null)
+  --trainer.inference_mode {true,false}
+                        Whether to use :func:`torch.inference_mode` or
+                        :func:`torch.no_grad` during evaluation
+                        (``validate``/``test``/``predict``). (type: bool,
+                        default: True)
+  --trainer.use_distributed_sampler {true,false}
+                        Whether to wrap the DataLoader's sampler with
+                        :class:`torch.utils.data.DistributedSampler`. If not
+                        specified this is toggled automatically for strategies
+                        that require it. By default, it will add
+                        ``shuffle=True`` for the train sampler and
+                        ``shuffle=False`` for validation/test/predict
+                        samplers. If you want to disable this logic, you can
+                        pass ``False`` and add your own distributed sampler in
+                        the dataloader hooks. If ``True`` and a distributed
+                        sampler was already added, Lightning will not replace
+                        the existing one. For iterable-style datasets, we
+                        don't do this automatically. (type: bool, default:
+                        True)
+  --trainer.profiler.help [CLASS_PATH_OR_NAME]
+                        Show the help for the given subclass of Profiler and
+                        exit.
+  --trainer.profiler PROFILER
+                        To profile individual steps during training and assist
+                        in identifying bottlenecks. Default: ``None``. (type:
+                        Union[Profiler, str, null], default: null, known
+                        subclasses:
+                        lightning.pytorch.profilers.AdvancedProfiler,
+                        lightning.pytorch.profilers.PassThroughProfiler,
+                        lightning.pytorch.profilers.PyTorchProfiler,
+                        lightning.pytorch.profilers.SimpleProfiler,
+                        lightning.pytorch.profilers.XLAProfiler)
+  --trainer.detect_anomaly {true,false}
+                        Enable anomaly detection for the autograd engine.
+                        Default: ``False``. (type: bool, default: False)
+  --trainer.barebones {true,false}
+                        Whether to run in "barebones mode", where all features
+                        that may impact raw speed are disabled. This is meant
+                        for analyzing the Trainer overhead and is discouraged
+                        during regular training runs. The following features
+                        are deactivated: :paramref:`~lightning.pytorch.trainer
+                        .trainer.Trainer.enable_checkpointing`, :paramref:`~li
+                        ghtning.pytorch.trainer.trainer.Trainer.logger`, :para
+                        mref:`~lightning.pytorch.trainer.trainer.Trainer.enabl
+                        e_progress_bar`, :paramref:`~lightning.pytorch.trainer
+                        .trainer.Trainer.log_every_n_steps`, :paramref:`~light
+                        ning.pytorch.trainer.trainer.Trainer.enable_model_summ
+                        ary`, :paramref:`~lightning.pytorch.trainer.trainer.Tr
+                        ainer.num_sanity_val_steps`, :paramref:`~lightning.pyt
+                        orch.trainer.trainer.Trainer.fast_dev_run`, :paramref:
+                        `~lightning.pytorch.trainer.trainer.Trainer.detect_ano
+                        maly`, :paramref:`~lightning.pytorch.trainer.trainer.T
+                        rainer.profiler`,
+                        :meth:`~lightning.pytorch.core.LightningModule.log`, :
+                        meth:`~lightning.pytorch.core.LightningModule.log_dict
+                        `. (type: bool, default: False)
+  --trainer.plugins.help CLASS_PATH_OR_NAME
+                        Show the help for the given subclass of
+                        {Precision,ClusterEnvironment,CheckpointIO,LayerSync}
+                        and exit.
+  --trainer.plugins PLUGINS, --trainer.plugins+ PLUGINS
+                        Plugins allow modification of core behavior like ddp
+                        and amp, and enable custom lightning plugins. Default:
+                        ``None``. (type: Union[Precision, ClusterEnvironment,
+                        CheckpointIO, LayerSync, list[Union[Precision,
+                        ClusterEnvironment, CheckpointIO, LayerSync]], null],
+                        default: null, known subclasses:
+                        lightning.pytorch.plugins.Precision,
+                        lightning.pytorch.plugins.MixedPrecision,
+                        lightning.pytorch.plugins.BitsandbytesPrecision,
+                        lightning.pytorch.plugins.DeepSpeedPrecision,
+                        lightning.pytorch.plugins.DoublePrecision,
+                        lightning.pytorch.plugins.FSDPPrecision,
+                        lightning.pytorch.plugins.HalfPrecision,
+                        lightning.pytorch.plugins.TransformerEnginePrecision,
+                        lightning.pytorch.plugins.XLAPrecision, lightning.fabr
+                        ic.plugins.environments.KubeflowEnvironment, lightning
+                        .fabric.plugins.environments.LightningEnvironment,
+                        lightning.fabric.plugins.environments.LSFEnvironment,
+                        lightning.fabric.plugins.environments.MPIEnvironment, 
+                        lightning.fabric.plugins.environments.SLURMEnvironment
+                        , lightning.fabric.plugins.environments.TorchElasticEn
+                        vironment,
+                        lightning.fabric.plugins.environments.XLAEnvironment,
+                        lightning.fabric.plugins.TorchCheckpointIO,
+                        lightning.fabric.plugins.XLACheckpointIO,
+                        lightning.pytorch.plugins.AsyncCheckpointIO,
+                        lightning.pytorch.plugins.TorchSyncBatchNorm)
+  --trainer.sync_batchnorm {true,false}
+                        Synchronize batch norm layers between process
+                        groups/whole world. Default: ``False``. (type: bool,
+                        default: False)
+  --trainer.reload_dataloaders_every_n_epochs RELOAD_DATALOADERS_EVERY_N_EPOCHS
+                        Set to a positive integer to reload dataloaders every
+                        n epochs. Default: ``0``. (type: int, default: 0)
+  --trainer.default_root_dir DEFAULT_ROOT_DIR
+                        Default path for logs and weights when no
+                        logger/ckpt_callback passed. Default: ``os.getcwd()``.
+                        Can be remote file paths such as `s3://mybucket/path`
+                        or 'hdfs://path/' (type: Union[str, Path, null],
+                        default: null)
+  --trainer.enable_autolog_hparams {true,false}
+                        Whether to log hyperparameters at the start of a run.
+                        Default: ``True``. (type: bool, default: True)
+  --trainer.model_registry MODEL_REGISTRY
+                        The name of the model being uploaded to Model hub.
+                        (type: Optional[str], default: null)
+
+<class 'xlstm_mixer.exp.exp.ForecastingExp'>:
+  --model.help [CLASS_PATH_OR_NAME]
+                        Show the help for the given subclass of ForecastingExp
+                        and exit.
+  --model CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE
+                        One or more arguments specifying "class_path" and
+                        "init_args" for any subclass of ForecastingExp. (type:
+                        Optional[ForecastingExp], default: {'class_path':
+                        'xlstm_mixer.exp.exp.LongTermForecastingExp',
+                        'init_args': {'criterion': 'torch.nn.L1Loss',
+                        'architecture': LazyInstance_BaseModel()}}, known
+                        subclasses: xlstm_mixer.exp.exp.ForecastingExp,
+                        xlstm_mixer.exp.exp.LongTermForecastingExp,
+                        xlstm_mixer.exp.exp.ShortTermForecastingExp)
+
+<class 'xlstm_mixer.lit.data.TSLibDataModule'>:
+  --data.help [CLASS_PATH_OR_NAME]
+                        Show the help for the given subclass of
+                        TSLibDataModule and exit.
+  --data CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE
+                        One or more arguments specifying "class_path" and
+                        "init_args" for any subclass of TSLibDataModule.
+                        (type: Optional[TSLibDataModule], default: null, known
+                        subclasses: xlstm_mixer.lit.data.TSLibDataModule,
+                        xlstm_mixer.lit.data.ForecastingTSLibDataModule,
+                        xlstm_mixer.lit.data.ClassificationTSLibDataModule)
+
+(<class 'torch.optim.adam.Adam'>, <class 'torch.optim.radam.RAdam'>):
+  --optimizer.help CLASS_PATH_OR_NAME
+                        Show the help for the given subclass of {Adam,RAdam}
+                        and exit.
+  --optimizer CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE
+                        One or more arguments specifying "class_path" and
+                        "init_args" for any subclass of {Adam,RAdam}. (type:
+                        Union[Adam, RAdam, null], default: {'class_path':
+                        'torch.optim.Adam', 'init_args': {'lr': 0.01}}, known
+                        subclasses: torch.optim.Adam, torch.optim.AdamW,
+                        torch.optim.RAdam)
+
+(<class 'xlstm_mixer.cli_helper.WarmUpCosineAnnealingScheduler'>, <class 'torch.optim.lr_scheduler.StepLR'>, <class 'torch.optim.lr_scheduler.CosineAnnealingLR'>, <class 'torch.optim.lr_scheduler.ConstantLR'>, <class 'torch.optim.lr_scheduler.CosineAnnealingWarmRestarts'>, <class 'torch.optim.lr_scheduler.SequentialLR'>):
+  --lr_scheduler.help CLASS_PATH_OR_NAME
+                        Show the help for the given subclass of {WarmUpCosineA
+                        nnealingScheduler,StepLR,CosineAnnealingLR,ConstantLR,
+                        CosineAnnealingWarmRestarts,SequentialLR} and exit.
+  --lr_scheduler CONFIG | CLASS_PATH_OR_NAME | .INIT_ARG_NAME VALUE
+                        One or more arguments specifying "class_path" and
+                        "init_args" for any subclass of {WarmUpCosineAnnealing
+                        Scheduler,StepLR,CosineAnnealingLR,ConstantLR,CosineAn
+                        nealingWarmRestarts,SequentialLR}. (type:
+                        Union[WarmUpCosineAnnealingScheduler, StepLR,
+                        CosineAnnealingLR, ConstantLR,
+                        CosineAnnealingWarmRestarts, SequentialLR, null],
+                        default: {'class_path': 'xlstm_mixer.cli_helper.WarmUp
+                        CosineAnnealingScheduler', 'init_args':
+                        {'warmup_epochs': 5, 'cosine_epochs': 15}}, known
+                        subclasses:
+                        xlstm_mixer.cli_helper.WarmUpCosineAnnealingScheduler,
+                        torch.optim.lr_scheduler.StepLR,
+                        torch.optim.lr_scheduler.CosineAnnealingLR,
+                        torch.optim.lr_scheduler.ConstantLR,
+                        torch.optim.lr_scheduler.CosineAnnealingWarmRestarts,
+                        torch.optim.lr_scheduler.SequentialLR)
+
+Generates a summary of all layers in a :class:`~lightning.pytorch.core.LightningModule` with `rich text:
+  --rich_model_summary CONFIG
+                        Path to a configuration file.
+  --rich_model_summary.max_depth MAX_DEPTH
+                        The maximum depth of layer nesting that the summary
+                        will include. A value of 0 turns the layer summary
+                        off. (type: int, default: 1)
+
+Save the model after every epoch by monitoring a quantity. Every logged metrics are passed to the:
+  --model_checkpoint CONFIG
+                        Path to a configuration file.
+  --model_checkpoint.dirpath DIRPATH
+                        Directory to save the model file. Example:
+                        ``dirpath='my/path/'``. .. warning:: In a distributed
+                        environment like DDP, it's recommended to provide a
+                        `dirpath` to avoid race conditions. When using manual
+                        optimization with ``every_n_train_steps``, make sure
+                        to save the model state in your training loop as shown
+                        in the example above. Can be remote file paths such as
+                        `s3://mybucket/path/` or 'hdfs://path/' (default:
+                        ``None``). If dirpath is ``None``, we only keep the
+                        ``k`` best checkpoints in memory, and do not save
+                        anything to disk. (type: Union[str, Path, null],
+                        default: checkpoints/)
+  --model_checkpoint.filename FILENAME
+                        checkpoint filename. Can contain named formatting
+                        options to be auto-filled. Example:: # save any
+                        arbitrary metrics like `val_loss`, etc. in name #
+                        saves a file like:
+                        my/path/epoch=2-val_loss=0.02-other_metric=0.03.ckpt
+                        >>> checkpoint_callback = ModelCheckpoint( ...
+                        dirpath='my/path', ...
+                        filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
+                        ... ) By default, filename is ``None`` and will be set
+                        to ``'{epoch}-{step}'``, where "epoch" and "step"
+                        match the number of finished epoch and optimizer steps
+                        respectively. (type: Optional[str], default:
+                        epoch={epoch}-val_loss={val/loss:.2f})
+  --model_checkpoint.monitor MONITOR
+                        quantity to monitor. By default it is ``None`` which
+                        saves a checkpoint only for the last epoch. (type:
+                        Optional[str], default: val/MeanSquaredError)
+  --model_checkpoint.verbose {true,false}
+                        verbosity mode. Default: ``False``. (type: bool,
+                        default: False)
+  --model_checkpoint.save_last SAVE_LAST
+                        When ``True``, saves a `last.ckpt` copy whenever a
+                        checkpoint file gets saved. Can be set to ``'link'``
+                        on a local filesystem to create a symbolic link. This
+                        allows accessing the latest checkpoint in a
+                        deterministic manner. Default: ``None``. (type:
+                        Union[bool, Literal['link'], null], default: null)
+  --model_checkpoint.save_top_k SAVE_TOP_K
+                        if ``save_top_k == k``, the best k models according to
+                        the quantity monitored will be saved. If ``save_top_k
+                        == 0``, no models are saved. If ``save_top_k == -1``,
+                        all models are saved. Please note that the monitors
+                        are checked every ``every_n_epochs`` epochs. If
+                        ``save_top_k >= 2`` and the callback is called
+                        multiple times inside an epoch, and the filename
+                        remains unchanged, the name of the saved file will be
+                        appended with a version count starting with ``v1`` to
+                        avoid collisions unless ``enable_version_counter`` is
+                        set to False. The version counter is unrelated to the
+                        top-k ranking of the checkpoint, and we recommend
+                        formatting the filename to include the monitored
+                        metric to avoid collisions. (type: int, default: 2)
+  --model_checkpoint.save_on_exception {true,false}
+                        Whether to save a checkpoint when an exception is
+                        raised. Default: ``False``. (type: bool, default:
+                        False)
+  --model_checkpoint.save_weights_only {true,false}
+                        if ``True``, then only the model's weights will be
+                        saved. Otherwise, the optimizer states, lr-scheduler
+                        states, etc are added in the checkpoint too. (type:
+                        bool, default: False)
+  --model_checkpoint.mode MODE
+                        one of {min, max}. If ``save_top_k != 0``, the
+                        decision to overwrite the current save file is made
+                        based on either the maximization or the minimization
+                        of the monitored quantity. For ``'val_acc'``, this
+                        should be ``'max'``, for ``'val_loss'`` this should be
+                        ``'min'``, etc. (type: str, default: min)
+  --model_checkpoint.auto_insert_metric_name {true,false}
+                        When ``True``, the checkpoints filenames will contain
+                        the metric name. For example,
+                        ``filename='checkpoint_{epoch:02d}-{acc:02.0f}`` with
+                        epoch ``1`` and acc ``1.12`` will resolve to
+                        ``checkpoint_epoch=01-acc=01.ckpt``. Is useful to set
+                        it to ``False`` when metric names contain ``/`` as
+                        this will result in extra folders. For example, ``file
+                        name='epoch={epoch}-step={step}-
+                        val_acc={val/acc:.2f}',
+                        auto_insert_metric_name=False`` (type: bool, default:
+                        False)
+  --model_checkpoint.every_n_train_steps EVERY_N_TRAIN_STEPS
+                        How many training steps to wait before saving a
+                        checkpoint. This does not take into account the steps
+                        of the current epoch. If ``every_n_train_steps == None
+                        or every_n_train_steps == 0``, no checkpoints will be
+                        saved during training. Mutually exclusive with
+                        ``train_time_interval`` and ``every_n_epochs``. ..
+                        note:: When using with manual optimization, the
+                        checkpoint will be saved after the optimizer step by
+                        default. To save the model state before the optimizer
+                        step, you need to save the model state in your
+                        ``training_step`` before calling ``optimizer.step()``.
+                        See the class docstring for an example. (type:
+                        Optional[int], default: null)
+  --model_checkpoint.train_time_interval TRAIN_TIME_INTERVAL
+                        Checkpoints are monitored at the specified time
+                        interval. For all practical purposes, this cannot be
+                        smaller than the amount of time it takes to process a
+                        single training batch. This is not guaranteed to
+                        execute at the exact time specified, but should be
+                        close. This must be mutually exclusive with
+                        ``every_n_train_steps`` and ``every_n_epochs``. (type:
+                        Optional[timedelta], default: null)
+  --model_checkpoint.every_n_epochs EVERY_N_EPOCHS
+                        Number of epochs between checkpoints. This value must
+                        be ``None`` or non-negative. To disable saving top-k
+                        checkpoints, set ``every_n_epochs = 0``. This argument
+                        does not impact the saving of ``save_last=True``
+                        checkpoints. If all of ``every_n_epochs``,
+                        ``every_n_train_steps`` and ``train_time_interval``
+                        are ``None``, we save a checkpoint at the end of every
+                        epoch (equivalent to ``every_n_epochs = 1``). If
+                        ``every_n_epochs == None`` and either
+                        ``every_n_train_steps != None`` or
+                        ``train_time_interval != None``, saving at the end of
+                        each epoch is disabled (equivalent to ``every_n_epochs
+                        = 0``). This must be mutually exclusive with
+                        ``every_n_train_steps`` and ``train_time_interval``.
+                        Setting both ``ModelCheckpoint(..., every_n_epochs=V,
+                        save_on_train_epoch_end=False)`` and
+                        ``Trainer(max_epochs=N, check_val_every_n_epoch=M)``
+                        will only save checkpoints at epochs 0 < E <= N where
+                        both values for ``every_n_epochs`` and
+                        ``check_val_every_n_epoch`` evenly divide E. (type:
+                        Optional[int], default: null)
+  --model_checkpoint.save_on_train_epoch_end {true,false,null}
+                        Whether to run checkpointing at the end of the
+                        training epoch. If ``True``, checkpoints are saved at
+                        the end of every training epoch. If ``False``,
+                        checkpoints are saved at the end of validation. If
+                        ``None`` (default), checkpointing behavior is
+                        determined based on training configuration. If
+                        ``val_check_interval`` is a str, dict, or `timedelta`
+                        (time-based), checkpointing is performed after
+                        validation. If ``check_val_every_n_epoch != 1``,
+                        checkpointing will not be performed at the end of
+                        every training epoch. If there are no validation
+                        batches of data, checkpointing will occur at the end
+                        of the training epoch. If there is a non-default
+                        number of validation runs per training epoch
+                        (``val_check_interval != 1``), checkpointing is
+                        performed after validation. (type: Optional[bool],
+                        default: null)
+  --model_checkpoint.enable_version_counter {true,false}
+                        Whether to append a version to the existing file name.
+                        If ``False``, then the checkpoint files will be
+                        overwritten. (type: bool, default: True)
+
+Automatically monitor and logs learning rate for learning rate schedulers during training:
+  --lr_monitor CONFIG   Path to a configuration file.
+  --lr_monitor.logging_interval LOGGING_INTERVAL
+                        set to ``'epoch'`` or ``'step'`` to log ``lr`` of all
+                        optimizers at the same interval, set to ``None`` to
+                        log at individual interval according to the
+                        ``interval`` key of each scheduler. Defaults to
+                        ``None``. (type: Optional[Literal['step', 'epoch']],
+                        default: epoch)
+  --lr_monitor.log_momentum {true,false}
+                        option to also log the momentum values of the
+                        optimizer, if the optimizer has the ``momentum`` or
+                        ``betas`` attribute. Defaults to ``False``. (type:
+                        bool, default: False)
+  --lr_monitor.log_weight_decay {true,false}
+                        option to also log the weight decay values of the
+                        optimizer. Defaults to ``False``. (type: bool,
+                        default: False)
+
+Linked arguments:
+  data.enc_in --> model.init_args.architecture.init_args.enc_in [applied on instantiate]
+                        Use --model.help for details.
+  data.pred_len --> model.init_args.architecture.init_args.pred_len [applied on instantiate]
+                        Use --model.help for details.
+  data.seq_len --> model.init_args.architecture.init_args.seq_len [applied on instantiate]
+                        Use --model.help for details.
+
+Runs the full optimization routine:
+  --ckpt_path CKPT_PATH
+                        Path/URL of the checkpoint from which training is
+                        resumed. Could also be one of three special keywords
+                        ``"last"``, ``"hpc"`` and ``"registry"``. Otherwise,
+                        if there is no checkpoint file at the path, an
+                        exception is raised. - best: the best model checkpoint
+                        from the previous ``trainer.fit`` call will be loaded
+                        - last: the last model checkpoint from the previous
+                        ``trainer.fit`` call will be loaded - registry: the
+                        model will be downloaded from the Lightning Model
+                        Registry with following notations: - ``'registry'``:
+                        uses the latest/default version of default model set
+                        with ``Trainer(..., model_registry="my-model")`` -
+                        ``'registry:model-name'``: uses the latest/default
+                        version of this model `model-name` -
+                        ``'registry:model-name:version:v2'``: uses the
+                        specific version 'v2' of the model `model-name` -
+                        ``'registry:version:v2'``: uses the default model set
+                        with ``Trainer(..., model_registry="my-model")`` and
+                        version 'v2' (type: Union[str, Path, null], default:
+                        null)
+  --weights_only {true,false,null}
+                        Defaults to ``None``. If ``True``, restricts loading
+                        to ``state_dicts`` of plain ``torch.Tensor`` and other
+                        primitive types. If loading a checkpoint from a
+                        trusted source that contains an ``nn.Module``, use
+                        ``weights_only=False``. If loading checkpoint from an
+                        untrusted source, we recommend using
+                        ``weights_only=True``. For more information, please
+                        refer to the `PyTorch Developer Notes on Serialization
+                        Semantics <https://docs.pytorch.org/docs/main/notes/se
+                        rialization.html#id3>`_. (type: Optional[bool],
+                        default: null)
