@@ -1,3 +1,32 @@
 torch>=2.2
 pandas>=2.2
 numpy>=1.26
+matplotlib
+seaborn
+plotly
+darts
+rich
+pyrootutils
+python-dotenv
+black
+pynvim
+debugpy
+einops
+# jupyter
+ipykernel
+jupyter
+ipywidgets
+scikit-learn
+captum
+torchmetrics
+optuna
+optuna-dashboard
+wandb
+# xlstm
+xlstm==1.0.3
+torchinfo
+patool
+sktime
+reformer_pytorch
+# MICE imputation
+git+https://github.com/Zhanna-Lopuliak/mice-py.git
