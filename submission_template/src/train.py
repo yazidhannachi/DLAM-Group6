@@ -44,15 +44,28 @@ df_train = pd.read_csv("data/train_data.csv", index_col=0)
 df_val = pd.read_csv("data/val_data.csv", index_col=0)
 X_train = df_train.iloc[:,:-1]
 y_train = df_train.iloc[:,-1].to_frame()
-X_test = df_val.copy()
 
-X_train_clean = X_pipeline.fit_transform(X_train)
-X_test_clean = X_pipeline.transform(X_test)
+total_len = len(df_train)
+train_end = int(total_len * (1-training_config["val_size"]))
+X_train_local = X_train.iloc[:train_end,:]
+X_val_local   = X_train.iloc[train_end:,:]
+y_train_local = y_train.iloc[:train_end,:]
+y_val_local = y_train.iloc[train_end:,:]
 
-y_train_clean = y_pipeline.fit_transform(y_train)
+X_train_local_clean = X_pipeline.fit_transform(X_train_local)
+X_val_local_clean  = X_pipeline.transform(X_val_local)
+y_train_local_clean = y_pipeline.fit_transform(y_train_local)
+y_val_local_clean = y_pipeline.transform(y_val_local)
 
-#model_builder = ModelBuilder(model_config)
-#model = model_builder.build()
+#X_test = df_val.copy()
+#X_train_clean = X_pipeline.fit_transform(X_train)
+#X_test_clean = X_pipeline.transform(X_test)
+#y_train_clean = y_pipeline.fit_transform(y_train)
 
-#model.fit(X,y)
-#model.save(os.path.join(save_dir, model_config["save_name"]))
+df_train_local_clean = pd.concat([X_train_local_clean, y_train_local_clean], axis=1)
+df_val_local_clean = pd.concat([X_val_local_clean, y_val_local_clean], axis=1)
+model_builder = ModelBuilder(model_config)
+model = model_builder.build()
+
+model.fit(df_train_local_clean, df_val_local_clean, save_dir)
+model.save(os.path.join(save_dir, model_config["save_name"]))
