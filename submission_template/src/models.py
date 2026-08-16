@@ -1,8 +1,13 @@
 import pickle 
 import torch
+import os
+from datetime import datetime
+import pandas as pd
+import numpy as np
 import lightning as L
+from tqdm import tqdm
 from torch.utils.data import DataLoader
-#from external.xLSTM-Mixer.models.xlstm_mixer import xLSTMMixer
+from external.xlstm_mixer.xlstm_mixer.models.xlstm_mixer import xLSTMMixer
 from statsmodels.tsa.arima.model import ARIMA
 
 from data_loader import CustomDataset
@@ -22,17 +27,17 @@ CRITERION_REGISTRY = {
 
 class ModelBuilder:
     def __init__(self, model_config):
-        hybrid = model_config["hybrid"]
-        model_name = model_config["model"]
-        model_kwargs = model_config["model_kwargs"]
-        if hybrid == True:
-            base_model_name = model_config["base_model"]
-            base_model_kwargs = model_config["base_model_kwargs"]
+        self.hybrid = model_config["hybrid"]
+        self.model_name = model_config["model_name"]
+        self.model_kwargs = model_config["model_kwargs"]
+        if self.hybrid == True:
+            self.base_model_name = model_config["base_model"]
+            self.base_model_kwargs = model_config["base_model_kwargs"]
             
     def build(self):
-        if hybrid == True:
-            return HybridModel(BASE_MODEL_REGISTRY[base_model_name](**base_model_kwargs), MODEL_REGISTRY[model_name](**model_kwargs))
-        return MODEL_REGISTRY[model_name](**model_kwargs)
+        if self.hybrid == True:
+            return HybridModel(BASE_MODEL_REGISTRY[self.base_model_name](**self.base_model_kwargs), MODEL_REGISTRY[self.model_name](**self.model_kwargs))
+        return MODEL_REGISTRY[self.model_name](**self.model_kwargs)
 
 
 class HybridModel:
@@ -99,49 +104,82 @@ class FourierApprox:
 BASE_MODEL_REGISTRY["fourier"] = FourierApprox
 
 class xLSTMMixerWrapper:
-    def __init__(self, seq_len, pred_lenP, criterion, lr=1e-3, kwargs={}):
-        self.model = xLSTMMixer(pred_len, seq_len,**kwargs)  
+    def __init__(self, seq_len, pred_len, enc_in, criterion, lr=1e-3, kwargs={}):
+        self.model = xLSTMMixer(pred_len, seq_len, enc_in,**kwargs)  
         self.seq_len = seq_len
         self.pred_len = pred_len
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-4)
         self.criterion = CRITERION_REGISTRY[criterion]()
         
-    def fit(self, df, batch_size=32, max_epochs=100, patience=5):
-        dataset = CustomDataset(df, self.seq_len, self.pred_len)
-        self.initial_history = df.grou
-        loader = DataLoader(dataset, batch_size, shuffle=True)
+    def fit(self, df_train, df_val, save_path, batch_size=128, max_epochs=100, patience=5):
+        os.makedirs(os.path.join(save_path, "checkpoints"), exist_ok=True)
+        dataset_train = CustomDataset(df_train, self.seq_len, self.pred_len)
+        dataset_val = CustomDataset(df_val, self.seq_len, self.pred_len)
+        #self.initial_history = extract_initial_history(df_train, seq_len=self.seq_len)
+        train_loader = DataLoader(dataset_train, batch_size, shuffle=True)
+        val_loader = DataLoader(dataset_val, batch_size, shuffle=True)
+
         
-        self.model.train()
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         best_loss = float('inf')
+        best_vloss = float('inf')
         counter = 0
         for epoch in range(max_epochs):
+            self.model.train()
             running_loss = 0.0
-            for batch in loader:
-                x, y, _ = batch
-                
-                x = x.to(self.device)
+            progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{max_epochs}", leave=True)
+            for i, batch in enumerate(train_loader):
+                x_enc, y, _ = batch
+                x_enc = x_enc.to(self.device)
                 y = y.to(self.device)
 
-                self.optimizer.zero_grad()
-                predictions = self.model(x_features)
-                loss = self.criterion(predictions, y_residual)
+                self.optimizer.zero_grad(set_to_none=True)
+                predictions = self.model(x_enc, 0, 0, 0).squeeze()
+                loss = self.criterion(predictions, y)
                 loss.backward()
                 self.optimizer.step()
                 
                 running_loss += loss.item()
-                if running_loss/len(loader) > best_loss:
-                    best_loss = running_loss/len(loader)
-                    patience = 0
-                else:
-                    patience += 1
-
-                if counter >= patience:
+                progress_bar.set_postfix(batch_loss=f"{loss.item():.4f}")
+                progress_bar.update(1)
+                if i >10:
                     break
 
-            print(f"Epoch {epoch+1}/{max_epochs} - Loss: {running_loss / len(loader):.5f}")
+            progress_bar.close()
+            running_vloss = 0.0
+        
+            self.model.eval()
+            val_bar = tqdm(val_loader, desc=f"Validation", leave=False)
+            with torch.no_grad():
+                for vdata in val_loader:
+                    vx, vy, _ = vdata
+                    vx = vx.to(self.device)
+                    vy = vy.to(self.device)
+                    vpred= self.model(vx,0,0,0).squeeze()
+                    vloss = self.criterion(vpred, vy)
+                    running_vloss += vloss.item()
+                    val_bar.update(1)
+                    val_bar.set_postfix(batch_loss=f"{vloss.item():.4f}")
+
+            avg_vloss = running_vloss / len(val_loader)
+            print(f"Epoch {epoch+1}/{max_epochs} - Avg. train. Loss: {running_loss / len(train_loader):.5f} - Avg. val. Loss: {running_vloss / len(val_loader):.5f}")
+    
+            if avg_vloss < best_vloss:
+                best_vloss = avg_vloss
+                model_path = os.path.join(save_path, "checkpoints", f'model_{timestamp}_{epoch}')
+                torch.save(self.model.state_dict(), model_path)
+                counter = 0
+            else:
+                counter += 1
+
+            if counter >= patience:
+                break
+
+            
 
 
     def predict(history_df, df_val):
@@ -180,4 +218,4 @@ class xLSTMMixerWrapper:
 
         return pred_df
 
-BASE_MODEL_REGISTRY["xLSTM-Mixer"] = xLSTMMixerWrapper
+MODEL_REGISTRY["xLSTMMixer"] = xLSTMMixerWrapper
