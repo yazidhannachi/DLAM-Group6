@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 
-from xlstm_mixer.lit.enums import Task
+from ..lit.enums import Task
 
 
 class BaseModel(nn.Module):
