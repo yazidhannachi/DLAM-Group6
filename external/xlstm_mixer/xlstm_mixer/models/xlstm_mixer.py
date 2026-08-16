@@ -7,7 +7,7 @@ import torch
 from xlstm.xlstm_block_stack import xLSTMBlockStack, xLSTMBlockStackConfig
 
 from einops.layers.torch import Rearrange
-from xlstm_mixer.layers.Autoformer_EncDec import series_decomp
+from ..layers.Autoformer_EncDec import series_decomp
 from ..layers.StandardNorm import Normalize as RevIN
 from einops import rearrange, repeat, pack, unpack
 from xlstm import (
@@ -115,7 +115,7 @@ class xLSTMMixer(BaseModel):
 
         slstm_config = sLSTMBlockConfig(
             slstm=sLSTMLayerConfig(
-                num_heads=xlstm_num_heads, conv1d_kernel_size=xlstm_conv1d_kernel_size
+                num_heads=xlstm_num_heads, conv1d_kernel_size=xlstm_conv1d_kernel_size, backend="vanilla"
             )
         )
         self.ablation_mode = ablation_mode
@@ -208,6 +208,7 @@ class xLSTMMixer(BaseModel):
             # x: [Batch, Input length, Channel]
             seq_last = x_enc[:, -1:, :].detach()
             x = x_enc - seq_last
+            #x = x.squeeze()
             x = self.Linear(x.permute(0, 2, 1)).permute(0, 2, 1)
             x_pre_forecast = x + seq_last
             x_pre_forecast = self.seq_var_2_var_seq(x_pre_forecast)
