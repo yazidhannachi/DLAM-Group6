@@ -1,3 +1,0 @@
-[submodule "external/xlstm_mixer"]
-	path = external/xlstm_mixer
-	url = https://github.com/mauricekraus/xLSTM-Mixer.git
