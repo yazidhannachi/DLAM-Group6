@@ -13,9 +13,9 @@ def hash_config(config_path):
 def extract_initial_history(train_df, seq_len):
 
     history_df = (
-        train_df.groupby('series_id', group_keys=False)
+        train_df.groupby('remainder__series_id', group_keys=False)
         .apply(lambda x: x.tail(seq_len))
-        .sort_values(by='series_id')
+        .sort_values(by='remainder__series_id')
     )
     return history_df
 
