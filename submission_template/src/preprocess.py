@@ -29,7 +29,7 @@ ESTIMATOR_REGISTRY = {
 
 class Preprocessor:
     def __init__(self, pp_config):
-        self.scaler = SCALER_REGISTRY[pp_config["scaler"]](**pp_config["scaler_kwargs"])
+        self.scaler = SCALER_REGISTRY[pp_config["scaler"]](**pp_config["scaler_kwargs"]).set_output(transform="pandas")
 
         imputer_kwargs = pp_config["imputer_kwargs"]
         if pp_config["imputer"] == "iterative":
@@ -47,16 +47,25 @@ class Preprocessor:
         self.missing_indicator_columns = pp_config["missing_indicator_columns"]
 
     def build(self):
-
+        si_scale_pl = Pipeline([
+            ('scaler', StandardScaler()),
+            ('imputer', self.simple_imputer)
+            ])
+        o_scale_pl = Pipeline([
+            ('scaler', StandardScaler()),
+            ('imputer', self.other_imputer)
+            ])
+        scale_pl = Pipeline([('scaler', StandardScaler())])
+        
         feature_preprocessor = ColumnTransformer(
             transformers=[
                 ('indicators', self.indicator, self.missing_indicator_columns),
-                ('simple_imputed', self.simple_imputer, self.simple_impute_columns),
-                ('other_imputed', self.other_imputer, self.other_impute_columns),
-                ('scaled', self.scaler, self.scale_columns)
+                ('simple_imputed', si_scale_pl, self.simple_impute_columns),
+                ('other_imputed', o_scale_pl, self.other_impute_columns),
+                ('scaled', scale_pl, self.scale_columns)
                 ],
                 remainder='passthrough' 
-            )
-        target_preprocessor = StandardScaler()
+            ).set_output(transform="pandas")
+        target_preprocessor = StandardScaler().set_output(transform="pandas")
 
         return feature_preprocessor, target_preprocessor
