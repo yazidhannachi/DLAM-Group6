@@ -7,24 +7,10 @@ preprocessing:
   mice_estimator_kwargs: {}
   indicator_kwargs: {}
   scale_columns: 
-    - "hour_sin"
-    - "hour_cos" 
-    - "dow_sin"
-    - "dow_cos"
     - "trend"
     - "workload_intensity"
-    - "demand_forecast"
-    - "staffing_forecast"
-    - 'upstream_quality_forecast'
     - 'promotion_intensity'
-    - 'shock_risk'
     - 'maintenance_known'
-    - 'unit_reliability_forecast'
-    - 'queue_pressure_forecast'
-    - 'network_pressure_forecast'
-    - 'event_load_forecast'
-    - 'service_irregularity_risk_forecast'
-    - 'throughput_disruption_risk_forecast'
   simple_impute_columns:
     - staffing_forecast
   other_impute_columns:
@@ -40,6 +26,11 @@ preprocessing:
   missing_indicator_columns: []
   #convert_to_categorical:
     #- "maintenance_known"
-model: {}
-training: {}
-data: {}
+model: 
+  hybrid: False
+  model_name: xLSTMMixer
+  model_kwargs: {seq_len: 96, pred_len: 24, enc_in: 23, criterion: "MSE"}
+training: 
+  val_size: 0.2
+data: 
+  save_path: experiments/
