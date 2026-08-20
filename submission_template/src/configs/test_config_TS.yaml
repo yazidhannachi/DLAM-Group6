@@ -1,0 +1,37 @@
+preprocessing:
+  scaler: "standard"
+  scaler_kwargs: {}
+  imputer: "iterative"
+  imputer_kwargs: {}
+  mice_estimator: "ridge"
+  mice_estimator_kwargs: {}
+  indicator_kwargs: {}
+  scale_columns: 
+    - "trend"
+    - "workload_intensity"
+    - "promotion_intensity"
+    - "maintenance_known"
+  simple_impute_columns:
+    - "staffing_forecast"
+  other_impute_columns:
+    - "demand_forecast"
+    - "upstream_quality_forecast"
+    - "shock_risk"
+    - "unit_reliability_forecast"
+    - "queue_pressure_forecast"
+    - "network_pressure_forecast"
+    - "event_load_forecast"
+    - "service_irregularity_risk_forecast"
+    - "throughput_disruption_risk_forecast"
+  missing_indicator_columns: []
+
+model: 
+  hybrid: False
+  model_name: TSMixerExt
+  model_kwargs: {seq_len: 168, pred_len: 24, enc_in: 23, criterion: "MAE",lr: 0.0005}
+
+training: 
+  val_size: 0.2
+
+data: 
+  save_path: experiments/
