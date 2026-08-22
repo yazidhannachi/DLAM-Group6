@@ -7,6 +7,7 @@ import numpy as np
 import lightning as L
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from external.xlstm_mixer.xlstm_mixer.models.xlstm_mixer import xLSTMMixer
 from statsmodels.tsa.arima.model import ARIMA
 
@@ -18,11 +19,6 @@ MODEL_REGISTRY = {
 
 BASE_MODEL_REGISTRY = {
     "ARIMA": ARIMA
-}
-
-CRITERION_REGISTRY = {
-    "MAE": torch.nn.L1Loss,
-    "MSE": torch.nn.MSELoss
 }
 
 class ModelBuilder:
@@ -103,119 +99,116 @@ class FourierApprox:
 
 BASE_MODEL_REGISTRY["fourier"] = FourierApprox
 
-class xLSTMMixerWrapper:
-    def __init__(self, seq_len, pred_len, enc_in, criterion, lr=1e-3, kwargs={}):
-        self.model = xLSTMMixer(pred_len, seq_len, enc_in,**kwargs)  
+class xLSTMMixerWrapper(xLSTMMixer):
+
+    def __init__(self, seq_len, pred_len, enc_in, num_series=96, embedding_dim=8, kwargs={}):
+        self.embedding_dim = embedding_dim
+        self.num_series = num_series
+        enc_in_new = enc_in + self.embedding_dim
+        super().__init__(pred_len, seq_len, enc_in_new, **kwargs)
+        #self.model = xLSTMMixer(pred_len, seq_len, enc_in,**kwargs)  
         self.seq_len = seq_len
         self.pred_len = pred_len
-        
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model.to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-4)
-        self.criterion = CRITERION_REGISTRY[criterion]()
+
+        self.series_embedding = torch.nn.Embedding(num_embeddings=num_series, embedding_dim=embedding_dim)
+        self.emb_dropout = torch.nn.Dropout(p=0.2)
+
+    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, series_idx=None, mask=None):
+        series_idx = series_idx.detach().clone().to(dtype=torch.long, device=self.device)
+        emb = self.series_embedding(series_idx)
+        emb = self.emb_dropout(emb)
+        emb = emb.unsqueeze(1).repeat(1, x_enc.shape[1], 1)
+        x_enc_embedded = torch.cat([x_enc, emb], dim=-1)
+        return super().forward(x_enc_embedded, x_mark_enc, x_dec, x_mark_dec, mask)
         
-    def fit(self, df_train, df_val, save_path, batch_size=128, max_epochs=100, patience=5):
-        os.makedirs(os.path.join(save_path, "checkpoints"), exist_ok=True)
-        dataset_train = CustomDataset(df_train, self.seq_len, self.pred_len)
-        dataset_val = CustomDataset(df_val, self.seq_len, self.pred_len)
-        #self.initial_history = extract_initial_history(df_train, seq_len=self.seq_len)
-        train_loader = DataLoader(dataset_train, batch_size, shuffle=True)
-        val_loader = DataLoader(dataset_val, batch_size, shuffle=True)
 
-        
+    def predict(self,x_enc, series_idx=None):
+        if x_enc.dim() == 2:
+            x_enc = x_enc.unsqueeze(0)
+        predictions = self.forward(x_enc,0,0,0, series_idx=series_idx).squeeze()
+        return predictions
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        best_loss = float('inf')
-        best_vloss = float('inf')
-        counter = 0
-        for epoch in range(max_epochs):
-            self.model.train()
-            running_loss = 0.0
-            progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{max_epochs}", leave=True)
-            for i, batch in enumerate(train_loader):
-                x_enc, y, _ = batch
-                x_enc = x_enc.to(self.device)
-                y = y.to(self.device)
 
-                self.optimizer.zero_grad(set_to_none=True)
-                predictions = self.model(x_enc, 0, 0, 0).squeeze()
-                loss = self.criterion(predictions, y)
-                loss.backward()
-                self.optimizer.step()
-                
-                running_loss += loss.item()
-                progress_bar.set_postfix(batch_loss=f"{loss.item():.4f}")
-                progress_bar.update(1)
-                if i >10:
-                    break
+    def predict_autoregressive(self, history_df, df_val):
 
-            progress_bar.close()
-            running_vloss = 0.0
-        
-            self.model.eval()
-            val_bar = tqdm(val_loader, desc=f"Validation", leave=False)
-            with torch.no_grad():
-                for vdata in val_loader:
-                    vx, vy, _ = vdata
-                    vx = vx.to(self.device)
-                    vy = vy.to(self.device)
-                    vpred= self.model(vx,0,0,0).squeeze()
-                    vloss = self.criterion(vpred, vy)
-                    running_vloss += vloss.item()
-                    val_bar.update(1)
-                    val_bar.set_postfix(batch_loss=f"{vloss.item():.4f}")
-
-            avg_vloss = running_vloss / len(val_loader)
-            print(f"Epoch {epoch+1}/{max_epochs} - Avg. train. Loss: {running_loss / len(train_loader):.5f} - Avg. val. Loss: {running_vloss / len(val_loader):.5f}")
+        self.to(self.device)
+        ignore_cols = ["series_id", "series_idx", "timestamp"]
+        feature_cols = [c for c in history_df.columns if c not in ignore_cols]
     
-            if avg_vloss < best_vloss:
-                best_vloss = avg_vloss
-                model_path = os.path.join(save_path, "checkpoints", f'model_{timestamp}_{epoch}')
-                torch.save(self.model.state_dict(), model_path)
-                counter = 0
-            else:
-                counter += 1
+        self.target_idx = feature_cols.index("target")
 
-            if counter >= patience:
-                break
-
-            
-
-
-    def predict(history_df, df_val):
-        
         pred_df = df_val.copy()
-        pred_df['prediction'] = pd.NA
-        
+        pred_df['target'] = np.nan
+
+        progress_bar = tqdm(list(df_val["series_id"].unique()), desc="Series ID", leave=True)
+
         for series_id, group in df_val.groupby('series_id'):
-            
-            series_history = history_df.loc[history_df["series_id"] == series_id,:] 
-            series_future = pred_df.loc[pred_df["series_id"] == series_id,:]
+
+            series_idx = history_df.loc[history_df["series_id"] == series_id, "series_idx"].iloc[0]
+            series_idx_tensor = torch.tensor([series_idx], dtype=torch.long, device=self.device)
+            series_history = history_df.loc[history_df["series_id"] == series_id, feature_cols]
+
+            history_window = series_history.tail(self.seq_len)
+            current_window = torch.tensor(history_window.values, dtype=torch.float32).unsqueeze(0).to(self.device)
+            series_future = pred_df.loc[pred_df["series_id"] == series_id, feature_cols]
+            total_forecast_horizon = len(series_future)
 
             group_indices = group.index.tolist()
 
             all_forecasts = []
             steps_generated = 0
+
             with torch.no_grad():
                 while steps_generated < total_forecast_horizon:
 
-                    y_pred = self.model.forecast(current_window) 
-
-                    y_pred_np = y_pred.cpu().numpy().flatten()
-                    all_forecasts.extend(y_pred_np)
+                    y_pred = self.predict(current_window, series_idx=series_idx_tensor) 
+                    y_pred_target = y_pred[:, self.target_idx]
+                    y_pred_target_np = y_pred_target.cpu().numpy().flatten()
+                    all_forecasts.extend(y_pred_target_np)
                     steps_generated += self.pred_len
 
-                    if steps_generated >= total_forecast_horizon:
-                        break
-                        
+                    step_start = steps_generated - self.pred_len
+                    step_end = steps_generated
+                    
+                    if step_end > total_forecast_horizon:
+                        future_feature_rows = series_future.iloc[step_start:total_forecast_horizon].values
+                        padding_needed = self.pred_len - len(future_feature_rows)
+                        pad_rows = np.repeat(future_feature_rows[-1:], padding_needed, axis=0)
+                        future_feature_rows = np.vstack([future_feature_rows, pad_rows])
+                    else:
+                        future_feature_rows = series_future.iloc[step_start:step_end].values
+
+                    new_rows = torch.tensor(future_feature_rows, dtype=torch.float32).to(self.device)
+                    new_rows[:, self.target_idx] = torch.tensor(y_pred_target_np, dtype=torch.float32).to(self.device)
+                    
                     next_window = current_window.squeeze(0).clone()
-                    new_rows = next_window[-1].repeat(self.pred_len, 1) 
-                    new_rows[:, self.target_idx] = torch.tensor(y_pred_np, dtype=torch.float32).to(self.device)
                     next_window = torch.cat([next_window[self.pred_len:], new_rows], dim=0)
                     current_window = next_window.unsqueeze(0)
 
-            pred_df.iloc[group_indices, 'prediction'] = all_forecasts
-
+            pred_df.loc[group_indices, 'target'] = all_forecasts[:total_forecast_horizon]
+            progress_bar.update(1)
+        progress_bar.close
         return pred_df
+
+    def predict_autoregressive_tensor(self, x_enc, y, series_idx, target_idx, rollout_steps):
+        context = x_enc
+        prediction_list = []
+        for i in range(rollout_steps):
+            predictions = self.predict(context, series_idx=series_idx)
+            prediction_list.append(predictions)
+            idx_start = i*self.pred_len
+            idx_end = (i+1)*self.pred_len
+            y_slice = y[:, idx_start:idx_end, :].clone()
+            y_slice[:,:,target_idx] = predictions[:,:,target_idx]
+            new_context = torch.cat([context, y_slice], dim=1)
+            context = new_context[:,self.pred_len:,:]
+        combined_preds = torch.cat(prediction_list, dim=1)
+        combined_preds = combined_preds[:,:y.shape[1],:]
+        return combined_preds
+
+
+            
 
 MODEL_REGISTRY["xLSTMMixer"] = xLSTMMixerWrapper
