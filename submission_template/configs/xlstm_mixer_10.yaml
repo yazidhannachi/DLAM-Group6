@@ -1,5 +1,5 @@
 shared:
-  seq_len: &seq_len 96
+  seq_len: &seq_len 72
   pred_len: &pred_len 24
   criterion: &criterion "MSE"
 
@@ -7,9 +7,9 @@ preprocessing:
   scaler: "standard"
   scaler_kwargs: {}
   imputer: "iterative"
-  imputer_kwargs: {}
+  imputer_kwargs: {max_iter: 20}
   mice_estimator: "ridge"
-  mice_estimator_kwargs: {}
+  mice_estimator_kwargs: {alpha: 10}
   indicator_kwargs: {}
   scale_columns: 
     - "trend"
@@ -34,20 +34,21 @@ preprocessing:
 model: 
   hybrid: False
   model_name: xLSTMMixer
-  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, enc_in: 23}
+  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0.2}}
   
 training: 
-  val_size: 0.2
   optimizer: Adam
-  optimizer_kwargs: {lr: 0.001, weight_decay: 0.0001}
+  optimizer_kwargs: {lr: 0.05, weight_decay: 0.0001}
   eta_min:  0.000001
-  max_epochs: 100
-  min_epochs: 30
+  max_epochs: 30
+  min_epochs: 5
   criterion: *criterion
-  patience: 15
+  patience: 8
   batch_size: 128
 
 data: 
   seq_len: *seq_len
   pred_len: *pred_len
   save_path: experiments/
+
+# experiment with target loss only 
