@@ -1,39 +1,39 @@
 import torch
+import numpy as np
 from torch.utils.data import Dataset
 
 class CustomDataset(Dataset):
     def __init__(self, df, seq_len, pred_len):
-
         self.seq_len = seq_len
-        self.label_len = int(self.seq_len/2)
         self.pred_len = pred_len
 
-        df_ = df.reset_index(drop=True)
-        self.data = torch.FloatTensor(df_.drop(["remainder__series_id", "remainder__timestamp"],axis=1).values)
-        self.valid_windows = []
-        
-        for series_id, group in df_.groupby('remainder__series_id'):
-            group_indices = group.index.tolist()
-            num_points = len(group_indices)
-            
-            max_start_offset = num_points - seq_len - pred_len
-            
-            for i in range(max_start_offset + 1):
-                start_global_idx = group_indices[i]
-                self.valid_windows.append((start_global_idx, series_id))
+        df = df.copy()
 
+        self.original_index = df.index.to_numpy()
+
+        model_cols = [c for c in df.columns if c not in ["series_id", "series_idx", "timestamp"]]
+        self.target_idx = model_cols.index("target")
+        self.data_x = torch.FloatTensor(df[model_cols].values)
+        self.data_y = torch.FloatTensor(df[model_cols].values)
+
+        self.valid_windows = []
+
+        for series_idx, group in df.groupby("series_idx"):
+            pos_idx = np.arange(len(df))[df["series_idx"].values == series_idx]
+            num_points = len(pos_idx)
+
+            max_start = num_points - (seq_len + pred_len)
+            for i in range(max_start + 1):
+                x_pos = pos_idx[i:i + seq_len]
+                y_pos = pos_idx[i + seq_len:i + seq_len + pred_len]
+                y_original_idx = self.original_index[y_pos]
+                self.valid_windows.append((x_pos, y_pos, y_original_idx, series_idx))
 
     def __len__(self):
         return len(self.valid_windows)
 
     def __getitem__(self, idx):
-        start_idx, series_id = self.valid_windows[idx]
-        
-        x_start = start_idx
-        x_end = start_idx + self.seq_len
-        y_end = x_end + self.pred_len
-        
-        x_enc = self.data[x_start:x_end,:]
-        y_target = self.data[x_end:y_end,:]
-        
-        return x_enc, y_target, series_id
+        x_pos, y_pos, y_original_idx, series_idx = self.valid_windows[idx]
+        x_enc = self.data_x[x_pos]
+        y_target = self.data_y[y_pos]
+        return x_enc, y_target, series_idx, y_original_idx
