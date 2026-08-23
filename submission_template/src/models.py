@@ -124,10 +124,10 @@ class xLSTMMixerWrapper(xLSTMMixer):
         return super().forward(x_enc_embedded, x_mark_enc, x_dec, x_mark_dec, mask)
         
 
-    def predict(self,x_enc, series_idx=None):
+    def predict(self, x_enc, series_idx=None):
         if x_enc.dim() == 2:
             x_enc = x_enc.unsqueeze(0)
-        predictions = self.forward(x_enc,0,0,0, series_idx=series_idx).squeeze()
+        predictions = self.forward(x_enc, 0, 0, 0, series_idx=series_idx)
         return predictions
 
 
@@ -164,7 +164,7 @@ class xLSTMMixerWrapper(xLSTMMixer):
                 while steps_generated < total_forecast_horizon:
 
                     y_pred = self.predict(current_window, series_idx=series_idx_tensor) 
-                    y_pred_target = y_pred[:, self.target_idx]
+                    y_pred_target = y_pred[:, :, self.target_idx]
                     y_pred_target_np = y_pred_target.cpu().numpy().flatten()
                     all_forecasts.extend(y_pred_target_np)
                     steps_generated += self.pred_len
@@ -189,7 +189,7 @@ class xLSTMMixerWrapper(xLSTMMixer):
 
             pred_df.loc[group_indices, 'target'] = all_forecasts[:total_forecast_horizon]
             progress_bar.update(1)
-        progress_bar.close
+        progress_bar.close()
         return pred_df
 
     def predict_autoregressive_tensor(self, x_enc, y, series_idx, target_idx, rollout_steps):
