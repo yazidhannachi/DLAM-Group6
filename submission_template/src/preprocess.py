@@ -30,23 +30,12 @@ ESTIMATOR_REGISTRY = {
 
 class Preprocessor:
     def __init__(self, pp_config):
-        self.scale_columns = pp_config["scale_columns"]
-        self.simple_impute_columns = pp_config["simple_impute_columns"]
-        self.other_impute_columns = pp_config["other_impute_columns"]
-        self.missing_indicator_columns = pp_config["missing_indicator_columns"]
-        self.target_col = pp_config.get("target_col", "target")
-
-        self.simple_imputer = SimpleImputer(strategy="constant", fill_value=0)
-        self.indicator = IMPUTER_REGISTRY["missing"](**pp_config.get("indicator_kwargs", {}))
-
-        imputer_kwargs = pp_config.get("imputer_kwargs", {}).copy()
-        if pp_config.get("imputer") == "iterative":
-            mice_estimator = ESTIMATOR_REGISTRY[pp_config["mice_estimator"]](
-                **pp_config["mice_estimator_kwargs"]
-            )
-            imputer_kwargs.update({"estimator": mice_estimator})
-
-        self.other_imputer = IMPUTER_REGISTRY[pp_config["imputer"]](**imputer_kwargs)
+        self.pp_config = pp_config
+        self.scale_columns = self.pp_config["scale_columns"]
+        self.simple_impute_columns = self.pp_config["simple_impute_columns"]
+        self.other_impute_columns = self.pp_config["other_impute_columns"]
+        self.missing_indicator_columns = self.pp_config["missing_indicator_columns"]
+        self.target_col = self.pp_config.get("target_col", "target")
 
     def fit_transform(self, X, y):
         self.feature_preprocessors = {}
@@ -56,19 +45,31 @@ class Preprocessor:
         processed_y_list = []
 
         for series_id, group_x in X.groupby("series_id"):
-            group_y = y[y["series_id"] == series_id]
+            group_y = y.loc[group_x.index]
+
+            simple_imputer = SimpleImputer(strategy="constant", fill_value=0)
+            indicator = IMPUTER_REGISTRY["missing"](**self.pp_config.get("indicator_kwargs", {}))
+    
+            imputer_kwargs = self.pp_config.get("imputer_kwargs", {}).copy()
+            if self.pp_config.get("imputer") == "iterative":
+                mice_estimator = ESTIMATOR_REGISTRY[self.pp_config["mice_estimator"]](
+                    **self.pp_config["mice_estimator_kwargs"]
+                )
+                imputer_kwargs.update({"estimator": mice_estimator})
+    
+            other_imputer = IMPUTER_REGISTRY[self.pp_config["imputer"]](**imputer_kwargs)
 
             si_scale_pl = Pipeline([
                 ('scaler', StandardScaler()),
-                ('imputer', self.simple_imputer)
+                ('imputer', simple_imputer)
             ])
             o_scale_pl = Pipeline([
                 ('scaler', StandardScaler()),
-                ('imputer', self.other_imputer)
+                ('imputer', other_imputer)
             ])
             scale_pl = Pipeline([('scaler', StandardScaler())])
             indicator_pl = Pipeline([
-                ('indicator', self.indicator),
+                ('indicator', indicator),
                 ('to_float', FunctionTransformer(lambda x: x.astype(float)))
             ])
 
