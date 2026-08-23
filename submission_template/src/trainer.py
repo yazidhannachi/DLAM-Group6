@@ -1,5 +1,6 @@
 import os
 import torch
+import mlflow
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm
@@ -85,18 +86,26 @@ class Trainer:
             print(f"Epoch {epoch+1}/{max_epochs} - Avg. train. Loss: {running_loss / len(train_loader):.5f} - val. Loss (target): {vloss:.5f}")
             #val_bar.close()
 
-            self.scheduler.step(vloss)
+            if self.scheduler is not None:
+                self.scheduler.step(vloss)
+
             print("Current lr:", self.optimizer.param_groups[0]["lr"])
+
+            mlflow.log_metric("train_loss", running_loss / len(train_loader), step=epoch)
+            mlflow.log_metric("val_loss", vloss, step=epoch)
+            mlflow.log_metric("lr", self.optimizer.param_groups[0]["lr"], step=epoch) 
 
             if vloss < best_vloss:
                 best_vloss = vloss
                 model_path = os.path.join(save_path, "checkpoints", f'model_{timestamp}_{epoch}')
                 self.best_model_path = model_path
                 torch.save(self.model.state_dict(), model_path)
+                mlflow.log_artifact(self.best_model_path, artifact_path="checkpoints")
+                mlflow.log_metric("best_val_loss", best_vloss, step=epoch)
                 counter = 0
             else:
                 counter += 1
-
+            
             if (counter >= patience) and (epoch>min_epochs):
                 break
         self.plot_losses(save_path)
