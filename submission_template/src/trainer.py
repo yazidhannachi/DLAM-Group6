@@ -27,8 +27,6 @@ class Trainer:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
         target_idx = train_loader.dataset.target_idx
-
-        best_loss = float('inf')
         best_vloss = float('inf')
         counter = 0
 
@@ -78,6 +76,7 @@ class Trainer:
                     val_bar.update(1)
                     val_bar.set_postfix(batch_loss=f"{vloss.item():.4f}")'''
                 pred_df = self.model.predict_autoregressive(df_train, df_val)
+                assert pred_df.index.equals(df_val.index)
                 pred = torch.tensor(pred_df["target"].values, dtype=torch.float32, device=self.device)
                 true = torch.tensor(df_val["target"].values, dtype=torch.float32, device=self.device)
                 vloss = self.criterion(pred, true).item()
@@ -98,7 +97,7 @@ class Trainer:
             else:
                 counter += 1
 
-            if (counter >= patience) & (epoch>min_epochs):
+            if (counter >= patience) and (epoch>min_epochs):
                 break
         self.plot_losses(save_path)
         return self.best_model_path
