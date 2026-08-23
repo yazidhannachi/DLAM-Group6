@@ -3,9 +3,10 @@ import numpy as np
 from torch.utils.data import Dataset
 
 class CustomDataset(Dataset):
-    def __init__(self, df, seq_len, pred_len):
+    def __init__(self, df, seq_len, pred_len, stride=1):
         self.seq_len = seq_len
         self.pred_len = pred_len
+        self.stride = stride
 
         df = df.copy()
 
@@ -19,11 +20,11 @@ class CustomDataset(Dataset):
         self.valid_windows = []
 
         for series_idx, group in df.groupby("series_idx"):
-            pos_idx = group.index.to_numpy()
+            pos_idx = np.arange(len(df))[df["series_idx"].values == series_idx]
             num_points = len(pos_idx)
 
             max_start = num_points - (seq_len + pred_len)
-            for i in range(max_start + 1):
+            for i in range(0, max_start + 1, stride):
                 x_pos = pos_idx[i:i + seq_len]
                 y_pos = pos_idx[i + seq_len:i + seq_len + pred_len]
                 y_original_idx = self.original_index[y_pos]
