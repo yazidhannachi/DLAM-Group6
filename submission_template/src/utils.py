@@ -1,5 +1,7 @@
 import hashlib
+import os
 import torch
+import matplotlib.pyplot as plt
 from torchmetrics.regression import MeanSquaredError,  MeanAbsoluteError, MeanAbsolutePercentageError, SymmetricMeanAbsolutePercentageError
 import pandas as pd
 
@@ -45,4 +47,28 @@ def compute_metrics(y_pred, y_val):
     df = pd.DataFrame(data, index=[0])
 
     return df
+
+def flatten_dict(d, parent_key="", sep="."):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+def plot_preds(save_dir, pred_df, val_df):
+    fix, axs = plt.subplots(5,1,figsize=(3,10))
+    unit_names = ["unit_000", "unit_005", "unit_030", "unit_075", "unit_090"]
+    groups_pred = pred_df.groupby("series_id")
+    groups_val = val_df.groupby("series_id")
+    for i, unit in enumerate(unit_names):
+
+        axs[i].plot(groups_val.get_group(unit), label="pred")
+        axs[i].plot(groups_pred.get_group(unit), label="val")
+        axs[i].legend()
+
+    plt.savefig(os.path.join(save_dir, "pred_plots.png"), format="PNG")
+
 
