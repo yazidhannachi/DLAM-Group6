@@ -103,7 +103,8 @@ else:
 
 train_loader = DataLoader(dataset_train, training_config["batch_size"], shuffle=True)
 
-enc_in = len(df_train_local_clean.columns) - 2 # -2 because of series_id and time_stamp column
+model_cols = [c for c in df_train_local_clean.columns if c not in ["series_id", "series_idx", "timestamp"]]
+enc_in = len(model_cols)
 model_config["model_kwargs"].update({"enc_in": enc_in})
 model_builder = ModelBuilder(model_config)
 model = model_builder.build()
@@ -124,6 +125,8 @@ model.eval()
 pred_df = model.predict_autoregressive(df_train_local_clean, df_val_local_clean)
 target_predictions = pred_df[["series_id", "target"]]
 target_predictions_rescaled = preprocessor.inverse_transform(target_predictions)
+
+assert target_predictions_rescaled.index.equals(y_val_local.index)
 
 metrics_df = compute_metrics(target_predictions_rescaled["target"].values, y_val_local["target"].values)
 metrics_df.to_csv(os.path.join(save_dir, "metrics.csv"))
