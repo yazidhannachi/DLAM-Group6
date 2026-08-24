@@ -1,0 +1,109 @@
+diff --git a/submission_template/analysis.ipynb b/submission_template/analysis.ipynb
+index dc8bb11..c93578b 100644
+--- a/submission_template/analysis.ipynb
++++ b/submission_template/analysis.ipynb
+@@ -215,7 +215,7 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 75,
++   "execution_count": 80,
+    "id": "57b2356f",
+    "metadata": {},
+    "outputs": [
+@@ -248,36 +248,18 @@
+        "  <tbody>\n",
+        "    <tr>\n",
+        "      <th>0</th>\n",
+-       "      <td>resilient-snipe-9</td>\n",
+-       "      <td>None</td>\n",
+-       "      <td>None</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>1</th>\n",
+-       "      <td>resilient-flea-878</td>\n",
+-       "      <td>None</td>\n",
+-       "      <td>None</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>2</th>\n",
+-       "      <td>dapper-gnat-747</td>\n",
+-       "      <td>None</td>\n",
+-       "      <td>None</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>3</th>\n",
+        "      <td>abundant-snail-649</td>\n",
+        "      <td>336</td>\n",
+        "      <td>24</td>\n",
+        "    </tr>\n",
+        "    <tr>\n",
+-       "      <th>4</th>\n",
++       "      <th>1</th>\n",
+        "      <td>bouncy-elk-491</td>\n",
+        "      <td>168</td>\n",
+        "      <td>96</td>\n",
+        "    </tr>\n",
+        "    <tr>\n",
+-       "      <th>5</th>\n",
++       "      <th>2</th>\n",
+        "      <td>whimsical-deer-715</td>\n",
+        "      <td>168</td>\n",
+        "      <td>24</td>\n",
+@@ -288,23 +270,17 @@
+       ],
+       "text/plain": [
+        "  tags.mlflow.runName params.model.model_kwargs.seq_len  \\\n",
+-       "0   resilient-snipe-9                              None   \n",
+-       "1  resilient-flea-878                              None   \n",
+-       "2     dapper-gnat-747                              None   \n",
+-       "3  abundant-snail-649                               336   \n",
+-       "4      bouncy-elk-491                               168   \n",
+-       "5  whimsical-deer-715                               168   \n",
++       "0  abundant-snail-649                               336   \n",
++       "1      bouncy-elk-491                               168   \n",
++       "2  whimsical-deer-715                               168   \n",
+        "\n",
+        "  params.model.model_kwargs.pred_len  \n",
+-       "0                               None  \n",
+-       "1                               None  \n",
+-       "2                               None  \n",
+-       "3                                 24  \n",
+-       "4                                 96  \n",
+-       "5                                 24  "
++       "0                                 24  \n",
++       "1                                 96  \n",
++       "2                                 24  "
+       ]
+      },
+-     "execution_count": 75,
++     "execution_count": 80,
+      "metadata": {},
+      "output_type": "execute_result"
+     }
+diff --git a/submission_template/mlflow.db b/submission_template/mlflow.db
+index 2f4a245..8fceeb0 100644
+Binary files a/submission_template/mlflow.db and b/submission_template/mlflow.db differ
+diff --git a/submission_template/src/train.py b/submission_template/src/train.py
+index 8904823..ba4de3c 100644
+--- a/submission_template/src/train.py
++++ b/submission_template/src/train.py
+@@ -119,6 +119,18 @@ with mlflow.start_run():
+     df_train_local_clean = pd.concat([X_train_local_clean, y_train_local_clean["target"]], axis=1)
+     df_val_local_clean = pd.concat([X_val_local_clean, y_val_local_clean["target"]], axis=1)
+ 
++
++    if data_config["input"] == "target_only":
++        keep_cols = ["series_id", "series_idx", "timestamp", "target"]
++    elif data_config["input"] == "partial":
++        selected_features = data_config["selected_features"]
++        keep_cols = ["series_id", "series_idx", "timestamp", "target"] + selected_features
++    else:
++        keep_cols = df_train_local_clean.columns
++        
++    df_train_local_clean = df_train_local_clean[keep_cols]
++    df_val_local_clean = df_val_local_clean[keep_cols]
++
+     if training_config["mode"] == "single_forecast":
+         dataset_train = CustomDataset(df_train_local_clean, data_config["seq_len"], data_config["pred_len"], stride=data_config["stride"])
+     else:
