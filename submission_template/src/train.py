@@ -119,6 +119,18 @@ with mlflow.start_run():
     df_train_local_clean = pd.concat([X_train_local_clean, y_train_local_clean["target"]], axis=1)
     df_val_local_clean = pd.concat([X_val_local_clean, y_val_local_clean["target"]], axis=1)
 
+
+    if data_config["input"] == "target_only":
+        keep_cols = ["series_id", "series_idx", "timestamp", "target"]
+    elif data_config["input"] == "partial":
+        selected_features = data_config["selected_features"]
+        keep_cols = ["series_id", "series_idx", "timestamp", "target"] + selected_features
+    else:
+        keep_cols = df_train_local_clean.columns
+        
+    df_train_local_clean = df_train_local_clean[keep_cols]
+    df_val_local_clean = df_val_local_clean[keep_cols]
+
     if training_config["mode"] == "single_forecast":
         dataset_train = CustomDataset(df_train_local_clean, data_config["seq_len"], data_config["pred_len"], stride=data_config["stride"])
     else:
@@ -146,7 +158,6 @@ with mlflow.start_run():
 
     mlflow.log_artifact(best_model_path, artifact_path="checkpoints")
     model.load_state_dict(torch.load(best_model_path))
-    model.load_state_dict(torch.load("experiments/xLSTMMixer_90a5961e_ab874efe01114e18a05ce06be0214162/checkpoints/model_20260823_175843_6"))
     model.eval()
 
     pred_df = model.predict_autoregressive(df_train_local_clean, df_val_local_clean)
