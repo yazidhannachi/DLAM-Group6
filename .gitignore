@@ -221,5 +221,4 @@ __marimo__/
 data/
 *.pt
 .DS_Store
-experiments/
 nohup*
