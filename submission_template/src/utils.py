@@ -64,9 +64,10 @@ def plot_preds(save_dir, pred_df, val_df):
     groups_pred = pred_df.groupby("series_id")
     groups_val = val_df.groupby("series_id")
     for i, unit in enumerate(unit_names):
-
-        axs[i].plot(groups_val.get_group(unit), label="pred")
-        axs[i].plot(groups_pred.get_group(unit), label="val")
+        group_val = groups_val.get_group(unit)
+        group_pred = groups_pred.get_group(unit)
+        axs[i].plot(group_val["target"].values, label="val")
+        axs[i].plot(group_pred["target"].values, label="pred")
         axs[i].legend()
 
     plt.savefig(os.path.join(save_dir, "pred_plots.png"), format="PNG")
