@@ -18,7 +18,6 @@ MODEL_REGISTRY = {
 }
 
 BASE_MODEL_REGISTRY = {
-    "ARIMA": ARIMA
 }
 
 class ModelBuilder:
@@ -26,13 +25,13 @@ class ModelBuilder:
         self.hybrid = model_config["hybrid"]
         self.model_name = model_config["model_name"]
         self.model_kwargs = model_config["model_kwargs"]
-        if self.hybrid == True:
+        '''if self.hybrid == True:
             self.base_model_name = model_config["base_model"]
-            self.base_model_kwargs = model_config["base_model_kwargs"]
+            self.base_model_kwargs = model_config["base_model_kwargs"]'''
             
     def build(self):
-        if self.hybrid == True:
-            return HybridModel(BASE_MODEL_REGISTRY[self.base_model_name](**self.base_model_kwargs), MODEL_REGISTRY[self.model_name](**self.model_kwargs))
+        '''if self.hybrid == True:
+            return HybridModel(BASE_MODEL_REGISTRY[self.base_model_name](**self.base_model_kwargs), MODEL_REGISTRY[self.model_name](**self.model_kwargs))'''
         return MODEL_REGISTRY[self.model_name](**self.model_kwargs)
 
 
@@ -62,40 +61,126 @@ class HybridModel:
         y_pred = y_pred_base + y_pred_res
         return y_pred
 
+class ARIMAWrapper:
+    def __init__(self, order=(1,0,1), seasonal_order=(1,0,1,24), trend='n', method='innovations_mle'):
+        self.order = order
+        self.seasonal_order = seasonal_order
+        self.trend = trend
+        self.method = method
+
+    def precompute_offline(self,dataset):
+        n = len(dataset)
+        seq_len = dataset.seq_len
+        pred_len = dataset.pred_len
+        target_idx = dataset.target_idx
+
+        insample_fit = np.zeros((n, seq_len), dtype=np.float32)
+        residual_hist = np.zeros((n, seq_len), dtype=np.float32)
+        base_forecast = np.zeros((n, pred_len), dtype=np.float32)
+        residual_target = np.zeros((n, pred_len), dtype=np.float32)
+
+        progress_bar = tqdm(total=n, desc="Precomputed windows", leave=True)
+
+        for idx in range(n):
+            x_pos, y_pos, _, _ = dataset.valid_windows[idx]
+
+            x_target = dataset.data_x[x_pos, target_idx].numpy()
+            y_target = dataset.data_y[y_pos, target_idx].numpy()
+
+            model = ARIMA(x_target, order=self.order, trend=self.trend, seasonal_order=self.seasonal_order, enforce_stationarity=True, enforce_invertibility=True)
+            try:
+                fitted = model.fit(method=self.method)
+            except Exception:
+                fitted = model.fit(method="statespace")
+            # in-sample predictions
+            x_fit = fitted.predict(start=0, end=len(x_target)-1)
+
+            # future forecast for prediction horizon
+            y_base = fitted.forecast(steps=pred_len)
+
+            insample_fit[idx] = x_fit
+            residual_hist[idx] = x_target - x_fit
+            base_forecast[idx] = y_base
+            residual_target[idx] = y_target - y_base
+            progress_bar.update(1)
+        progress_bar.close()
+        return insample_fit, residual_hist, base_forecast, residual_target
+
+BASE_MODEL_REGISTRY["ARIMA"] = ARIMAWrapper
+
+
 class FourierApprox:
-    def __init__(self):
-        pass
+    def __init__(self, cutoff=0):
+        self.cutoff = cutoff
 
-    def fit(self, X, y, cutoff=0):
-        self.train_spectrum = np.fft.fft(y, norm='ortho')
+    def fit(self, y):
         self.N = len(y)
+        #y_ = y.values
+        self.train_spectrum = np.fft.fft(y, norm='ortho')
         self.freqs = np.fft.fftfreq(self.N)
-        self.cutoff = cutoff 
-        
-    def save(self, path):
-        with open("path", w) as f:
-            pickle.dump(self, f)
 
-    def predict(self, X):
-        t = np.arange(len(X)) #???
+    def predict_in_sample(self):
+        t = np.arange(self.N)
+        return self.reconstruct(t)
+
+    def predict_future(self, H):
+        t = np.arange(self.N, self.N + H)
+        return self.reconstruct(t)
+
+    def reconstruct(self, t):
         y = np.zeros(len(t))
-        count=0
+
         if np.abs(self.train_spectrum[0]) >= self.cutoff:
-            count+=1
-            y+= self.train_spectrum[0].real / np.sqrt(self.N)
+            y += self.train_spectrum[0].real / np.sqrt(self.N)
 
         pos = np.where((self.freqs > 0) & (self.freqs < 0.5))[0]
         for k in pos:
-            if np.abs(X[k]) >= self.cutoff:
-                count += 1
-                y += 2*np.abs(X[k])/np.sqrt(N)*np.cos(2*np.pi*self.freqs[k]*t+np.angle(X[k]))
+            if np.abs(self.train_spectrum[k]) >= self.cutoff:
+                y += (2*np.abs(self.train_spectrum[k])/np.sqrt(self.N)*np.cos(2 * np.pi * self.freqs[k]*t + np.angle(self.train_spectrum[k])))
 
-        if self.N%2==0:
-            k=self.N//2
-            if np.abs(X[k]) >= cutoff:
-                count+=1
-                y += X[k].real/np.sqrt(N)*np.cos(np.pi*t)
+        if self.N % 2 == 0:
+            k = self.N // 2
+            if np.abs(self.train_spectrum[k]) >= self.cutoff:
+                y += self.train_spectrum[k].real / np.sqrt(self.N) * np.cos(np.pi * t)
+
         return y
+    
+    def precompute_offline(self,dataset):
+       
+        n = len(dataset)
+        seq_len = dataset.seq_len
+        pred_len = dataset.pred_len
+        target_idx = dataset.target_idx
+
+        insample_fit = np.zeros((n, seq_len), dtype=np.float32)
+        residual_hist = np.zeros((n, seq_len), dtype=np.float32)
+        base_forecast = np.zeros((n, pred_len), dtype=np.float32)
+        residual_target = np.zeros((n, pred_len), dtype=np.float32)
+
+        progress_bar = tqdm(total=n, desc="Precomputed windows", leave=True)
+
+        for idx in range(n):
+            x_pos, y_pos, _, _ = dataset.valid_windows[idx]
+
+            x_target = dataset.data_x[x_pos, target_idx].numpy()
+            y_target = dataset.data_y[y_pos, target_idx].numpy()
+
+            fitted = self.fit(x_target)
+
+            # in-sample predictions
+            x_fit = self.predict_in_sample()
+
+            # future forecast for prediction horizon
+            y_base = self.predict_future(pred_len)
+
+            insample_fit[idx] = x_fit
+            residual_hist[idx] = x_target - x_fit
+            base_forecast[idx] = y_base
+            residual_target[idx] = y_target - y_base
+            if n % 100 ==0:
+                progress_bar.update(100)
+        progress_bar.close()
+        return insample_fit, residual_hist, base_forecast, residual_target
 
 BASE_MODEL_REGISTRY["fourier"] = FourierApprox
 
@@ -208,7 +293,97 @@ class xLSTMMixerWrapper(xLSTMMixer):
         combined_preds = combined_preds[:,:y.shape[1],:]
         return combined_preds
 
+    def _prepare_hybrid_window(self, current_window, base_model, as_feature, target_idx):
 
-            
+        raw_window = current_window.squeeze(0).detach().cpu().numpy().copy()
+        target_hist = raw_window[:, target_idx]
+
+        base_model.fit(target_hist)
+        x_fit = base_model.predict_in_sample()
+        y_base = base_model.predict_future(self.pred_len)
+
+        if as_feature == False:
+            raw_window[:, target_idx] = target_hist - x_fit
+            prepared_window = torch.tensor(raw_window, dtype=torch.float32, device=self.device).unsqueeze(0)
+
+        elif as_feature == True:
+            fit_col = x_fit.reshape(-1, 1)
+            raw_window_aug = np.concatenate([raw_window, fit_col], axis=1)
+            prepared_window = torch.tensor(raw_window_aug, dtype=torch.float32, device=self.device).unsqueeze(0)
+
+
+        return prepared_window, y_base
+
+    def predict_autoregressive_hybrid(self, history_df, df_val, base_model, as_feature=False):
+        self.to(self.device)
+
+        ignore_cols = ["series_id", "series_idx", "timestamp"]
+        feature_cols = [c for c in history_df.columns if c not in ignore_cols]
+        target_idx = feature_cols.index("target")
+        self.target_idx = target_idx
+
+        pred_df = df_val.copy()
+        pred_df["target"] = np.nan
+
+        progress_bar = tqdm(list(df_val["series_id"].unique()), desc="Series ID", leave=True)
+
+        for series_id, group in df_val.groupby("series_id"):
+            series_idx = history_df.loc[history_df["series_id"] == series_id, "series_idx"].iloc[0]
+            series_idx_tensor = torch.tensor([series_idx], dtype=torch.long, device=self.device)
+
+            # Keep RAW history here
+            series_history = history_df.loc[history_df["series_id"] == series_id, feature_cols].copy()
+            history_window = series_history.tail(self.seq_len)
+            current_window_raw = torch.tensor(
+                history_window.values, dtype=torch.float32, device=self.device
+            ).unsqueeze(0)
+
+            series_future = pred_df.loc[pred_df["series_id"] == series_id, feature_cols]
+            total_forecast_horizon = len(series_future)
+            group_indices = group.index.tolist()
+
+            all_forecasts = []
+            steps_generated = 0
+
+            with torch.no_grad():
+                while steps_generated < total_forecast_horizon:
+                    prepared_window, y_base = self._prepare_hybrid_window(
+                        current_window_raw, base_model, as_feature, target_idx
+                    )
+
+                    y_pred = self.predict(prepared_window, series_idx=series_idx_tensor)
+
+                    y_pred_target = y_pred[:, :, target_idx]
+                    y_pred_res_np = y_pred_target.cpu().numpy().flatten()
+
+                    y_pred_final_np = y_base + y_pred_res_np
+                    all_forecasts.extend(y_pred_final_np.tolist())
+
+                    steps_generated += self.pred_len
+
+                    step_start = steps_generated - self.pred_len
+                    step_end = steps_generated
+
+                    if step_end > total_forecast_horizon:
+                        future_feature_rows = series_future.iloc[step_start:total_forecast_horizon].values
+                        padding_needed = self.pred_len - len(future_feature_rows)
+                        pad_rows = np.repeat(future_feature_rows[-1:], padding_needed, axis=0)
+                        future_feature_rows = np.vstack([future_feature_rows, pad_rows])
+                    else:
+                        future_feature_rows = series_future.iloc[step_start:step_end].values
+
+                    new_rows = torch.tensor(future_feature_rows, dtype=torch.float32, device=self.device)
+
+                    new_rows[:, target_idx] = torch.tensor(y_pred_final_np, dtype=torch.float32, device=self.device)
+
+                    next_window = current_window_raw.squeeze(0).clone()
+                    next_window = torch.cat([next_window[self.pred_len:], new_rows], dim=0)
+                    current_window_raw = next_window.unsqueeze(0)
+
+            pred_df.loc[group_indices, "target"] = all_forecasts[:total_forecast_horizon]
+            progress_bar.update(1)
+
+        progress_bar.close()
+        return pred_df
 
 MODEL_REGISTRY["xLSTMMixer"] = xLSTMMixerWrapper
