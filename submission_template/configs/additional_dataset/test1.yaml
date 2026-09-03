@@ -1,0 +1,53 @@
+preprocessing:
+  scaler: "standard"
+  scaler_kwargs: {}
+  imputer: "iterative"
+  imputer_kwargs: {}
+  mice_estimator: "ridge"
+  mice_estimator_kwargs: {}
+  indicator_kwargs: {}
+  scale_columns:
+    - "latitude"
+    - "longitude"
+    - "height"
+  simple_impute_columns: []
+  other_impute_columns:
+    - "precipitation"
+    - "pressure"
+    - "pressure_max"
+    - "pressure_min"
+    - "dew_point"
+    - "temp_max"
+    - "temp_min"
+    - "dew_point_max"
+    - "dew_point_min"
+    - "humidity_max"
+    - "humidity_min"
+    - "humidity"
+    - "wind_direction"
+    - "wind_gust"
+    - "wind_speed"
+  missing_indicator_columns: []
+
+model:
+  hybrid: False
+  model_name: xLSTMMixer
+  model_kwargs: {seq_len: 168, pred_len: 24}
+
+training:
+  val_size: 0.2
+  optimizer: "Adam"
+  optimizer_kwargs: {lr: 0.001}
+  criterion: "MAE"
+  mode: "single_forecast"
+  ar_steps: 14
+  batch_size: 128
+  min_epochs: 10
+  max_epochs: 100
+  patience: 5
+
+data:
+  train_path: "data/brazilian_train.csv"
+  save_path: experiments/
+  seq_len: 168
+  pred_len: 24

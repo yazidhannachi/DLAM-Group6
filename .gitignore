@@ -222,3 +222,4 @@ data/
 *.pt
 .DS_Store
 nohup*
+data_brazilian/
