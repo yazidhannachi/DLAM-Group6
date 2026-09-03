@@ -222,3 +222,5 @@ data/
 *.pt
 .DS_Store
 nohup*
+
+*submission_template/.nfs00000000088812490000000f
