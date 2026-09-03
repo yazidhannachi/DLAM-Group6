@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from external.xlstm_mixer.xlstm_mixer.models.xlstm_mixer import xLSTMMixer
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 from data_loader import CustomDataset
 from utils import extract_initial_history
@@ -62,34 +63,50 @@ class HybridModel:
         return y_pred
 
 class ARIMAWrapper:
-    def __init__(self, order=(1,0,1), seasonal_order=(1,0,1,24), trend='n', method='innovations_mle'):
+    def __init__(self,order=(1, 0, 1),seasonal_order=(1, 0, 1, 24),trend='n',method='lbfgs',exog_feature_names=None):
         self.order = order
         self.seasonal_order = seasonal_order
         self.trend = trend
         self.method = method
+        self.exog_feature_names = exog_feature_names
+        self.train_target = None
+        self.train_exog = None
+        self.fitted_model = None
 
-    def fit(self, y):
+    def fit(self, y, exog=None):
         self.train_target = np.asarray(y, dtype=np.float32)
+        self.train_exog = None if exog is None else np.asarray(exog, dtype=np.float32)
 
-        model = ARIMA(self.train_target, order=self.order, trend=self.trend)
-        self.fitted_model = model.fit(method=self.method)
+        model = SARIMAX(endog=self.train_target,exog=self.train_exog,order=self.order,seasonal_order=self.seasonal_order,trend=self.trend,enforce_stationarity=True,enforce_invertibility=True)
+        self.fitted_model = model.fit(disp=False, method=self.method)
         return self
+
+    def _get_exog_indices(self, feature_names, target_idx):
+        if self.exog_feature_names is None:
+            return [i for i in range(len(feature_names)) if i != target_idx]
+
+        return [i for i, name in enumerate(feature_names) if (i != target_idx) and (name in self.exog_feature_names)]
 
     def predict_in_sample(self):
         if self.fitted_model is None:
             raise RuntimeError("ARIMAWrapper must be fit before calling predict_in_sample().")
         return np.asarray(self.fitted_model.predict(start=0, end=len(self.train_target)-1),dtype=np.float32)
 
-    def predict_future(self, steps):
-        if self.fitted_model is None:
-            raise RuntimeError("ARIMAWrapper must be fit before calling predict_future().")
-        return np.asarray(self.fitted_model.forecast(steps=steps),dtype=np.float32)
+    def predict_future(self, steps, exog_future=None):
+        if self.fitted_model is None: raise RuntimeError("ARIMAWrapper must be fit before calling predict_future().")
 
-    def precompute_offline(self,dataset):
+        exog_future = None if exog_future is None else np.asarray(exog_future, dtype=np.float32)
+
+        return np.asarray(self.fitted_model.forecast(steps=steps, exog=exog_future),dtype=np.float32)
+    
+    def precompute_offline(self, dataset):
         n = len(dataset)
         seq_len = dataset.seq_len
         pred_len = dataset.pred_len
         target_idx = dataset.target_idx
+        feature_names = dataset.model_cols
+
+        exog_indices = self._get_exog_indices(feature_names, target_idx)
 
         insample_fit = np.zeros((n, seq_len), dtype=np.float32)
         residual_hist = np.zeros((n, seq_len), dtype=np.float32)
@@ -101,28 +118,32 @@ class ARIMAWrapper:
         for idx in range(n):
             x_pos, y_pos, _, _ = dataset.valid_windows[idx]
 
-            x_target = dataset.data_x[x_pos, target_idx].numpy()
-            y_target = dataset.data_y[y_pos, target_idx].numpy()
+            x_window = dataset.data_x[x_pos].cpu().numpy()
+            y_window = dataset.data_y[y_pos].cpu().numpy()
 
-            model = ARIMA(x_target, order=self.order, trend=self.trend, seasonal_order=self.seasonal_order, enforce_stationarity=True, enforce_invertibility=True)
-            try:
-                fitted = model.fit(method=self.method)
-            except Exception:
-                fitted = model.fit(method="statespace")
-            # in-sample predictions
-            x_fit = fitted.predict(start=0, end=len(x_target)-1)
+            x_target = x_window[:, target_idx]
+            y_target = y_window[:, target_idx]
 
-            # future forecast for prediction horizon
-            y_base = fitted.forecast(steps=pred_len)
+            if len(exog_indices) > 0:
+                x_exog = x_window[:, exog_indices]
+                y_exog = y_window[:, exog_indices]
+            else:
+                x_exog = None
+                y_exog = None
+
+            self.fit(x_target, exog=x_exog)
+            x_fit = self.predict_in_sample()
+            y_base = self.predict_future(pred_len, exog_future=y_exog)
 
             insample_fit[idx] = x_fit
             residual_hist[idx] = x_target - x_fit
             base_forecast[idx] = y_base
             residual_target[idx] = y_target - y_base
+
             progress_bar.update(1)
+
         progress_bar.close()
         return insample_fit, residual_hist, base_forecast, residual_target
-
 BASE_MODEL_REGISTRY["ARIMA"] = ARIMAWrapper
 
 
@@ -130,17 +151,20 @@ class FourierApprox:
     def __init__(self, cutoff=0):
         self.cutoff = cutoff
 
-    def fit(self, y):
+    def fit(self, y, exog=None):
         self.N = len(y)
         #y_ = y.values
         self.train_spectrum = np.fft.fft(y, norm='ortho')
         self.freqs = np.fft.fftfreq(self.N)
 
+    def _get_exog_indices(self, feature_names, target_idx):
+        return []
+
     def predict_in_sample(self):
         t = np.arange(self.N)
         return self.reconstruct(t)
 
-    def predict_future(self, H):
+    def predict_future(self, H, exog_future=None):
         t = np.arange(self.N, self.N + H)
         return self.reconstruct(t)
 
@@ -308,39 +332,36 @@ class xLSTMMixerWrapper(xLSTMMixer):
         combined_preds = torch.cat(prediction_list, dim=1)
         combined_preds = combined_preds[:,:y.shape[1],:]
         return combined_preds
-
-    def _prepare_hybrid_window(self, current_window, base_model, as_feature, target_idx):
-
+    
+    def _prepare_hybrid_window(self, current_window, x_fit, as_feature, target_idx):
         raw_window = current_window.squeeze(0).detach().cpu().numpy().copy()
         target_hist = raw_window[:, target_idx]
 
-        base_model.fit(target_hist)
-        x_fit = base_model.predict_in_sample()
-        y_base = base_model.predict_future(self.pred_len)
-
-        if as_feature == False:
+        if as_feature is False:
             raw_window[:, target_idx] = target_hist - x_fit
-            prepared_window = torch.tensor(raw_window, dtype=torch.float32, device=self.device).unsqueeze(0)
+            prepared_window = torch.tensor(
+                raw_window, dtype=torch.float32, device=self.device
+            ).unsqueeze(0)
 
-        elif as_feature == True:
+        elif as_feature is True:
             fit_col = x_fit.reshape(-1, 1)
             raw_window_aug = np.concatenate([raw_window, fit_col], axis=1)
-            prepared_window = torch.tensor(raw_window_aug, dtype=torch.float32, device=self.device).unsqueeze(0)
+            prepared_window = torch.tensor(
+                raw_window_aug, dtype=torch.float32, device=self.device
+            ).unsqueeze(0)
 
+        else:
+            raise ValueError(f"Invalid as_feature value: {as_feature}")
 
-        return prepared_window, y_base
+        return prepared_window
+
 
     def predict_autoregressive_hybrid(self, history_df, df_val, base_model, as_feature=False):
         self.to(self.device)
 
         ignore_cols = ["series_id", "series_idx", "timestamp"]
         feature_cols = [c for c in history_df.columns if c not in ignore_cols]
-        target_idx = feature_cols.index("target")
-        self.target_idx = target_idx
-
-        for series_id, group in df_val.groupby("series_id"):
-            print(series_id, len(group))
-            break
+        self.target_idx = feature_cols.index("target")
 
         pred_df = df_val.copy()
         pred_df["target"] = np.nan
@@ -351,50 +372,89 @@ class xLSTMMixerWrapper(xLSTMMixer):
             series_idx = history_df.loc[history_df["series_id"] == series_id, "series_idx"].iloc[0]
             series_idx_tensor = torch.tensor([series_idx], dtype=torch.long, device=self.device)
 
-            # Keep RAW history here
+            # Full DNN input history
             series_history = history_df.loc[history_df["series_id"] == series_id, feature_cols].copy()
             history_window = series_history.tail(self.seq_len)
+
             current_window_raw = torch.tensor(
                 history_window.values, dtype=torch.float32, device=self.device
             ).unsqueeze(0)
 
-            series_future = pred_df.loc[pred_df["series_id"] == series_id, feature_cols]
+            # Use df_val as the source of future exogenous features
+            series_future = df_val.loc[df_val["series_id"] == series_id, feature_cols]
             total_forecast_horizon = len(series_future)
             group_indices = group.index.tolist()
+
+            raw_window_np = history_window.values.copy()
+            target_hist = raw_window_np[:, self.target_idx]
+
+            exog_indices = base_model._get_exog_indices(feature_cols, self.target_idx)
+
+            if len(exog_indices) > 0:
+                exog_hist = raw_window_np[:, exog_indices]
+                exog_future_full = series_future.iloc[:, exog_indices].values
+            else:
+                exog_hist = None
+                exog_future_full = None
+
+            # Fit SARIMAX once per series
+            base_model.fit(target_hist, exog=exog_hist)
+            x_fit_init = base_model.predict_in_sample()
+            y_base_full = base_model.predict_future(
+                total_forecast_horizon,
+                exog_future=exog_future_full
+            )
 
             all_forecasts = []
             steps_generated = 0
 
             with torch.no_grad():
                 while steps_generated < total_forecast_horizon:
-                    prepared_window, y_base = self._prepare_hybrid_window(
-                        current_window_raw, base_model, as_feature, target_idx
-                    )
-
-                    y_pred = self.predict(prepared_window, series_idx=series_idx_tensor)
-
-                    y_pred_target = y_pred[:, :, target_idx]
-                    y_pred_res_np = y_pred_target.cpu().numpy().flatten()
-
-                    y_pred_final_np = y_base + y_pred_res_np
-                    all_forecasts.extend(y_pred_final_np.tolist())
-
-                    steps_generated += self.pred_len
-
-                    step_start = steps_generated - self.pred_len
-                    step_end = steps_generated
+                    step_start = steps_generated
+                    step_end = steps_generated + self.pred_len
 
                     if step_end > total_forecast_horizon:
                         future_feature_rows = series_future.iloc[step_start:total_forecast_horizon].values
                         padding_needed = self.pred_len - len(future_feature_rows)
                         pad_rows = np.repeat(future_feature_rows[-1:], padding_needed, axis=0)
                         future_feature_rows = np.vstack([future_feature_rows, pad_rows])
+
+                        y_base_chunk = y_base_full[step_start:total_forecast_horizon]
+                        y_base_chunk = np.concatenate(
+                            [y_base_chunk, np.repeat(y_base_chunk[-1], padding_needed)]
+                        )
                     else:
                         future_feature_rows = series_future.iloc[step_start:step_end].values
+                        y_base_chunk = y_base_full[step_start:step_end]
 
-                    new_rows = torch.tensor(future_feature_rows, dtype=torch.float32, device=self.device)
+                    if step_start == 0:
+                        x_fit_for_window = x_fit_init
+                    else:
+                        # Approximation for later windows when not refitting SARIMAX
+                        x_fit_for_window = current_window_raw.squeeze(0).detach().cpu().numpy()[:, self.target_idx]
 
-                    new_rows[:, target_idx] = torch.tensor(y_pred_final_np, dtype=torch.float32, device=self.device)
+                    prepared_window = self._prepare_hybrid_window(
+                        current_window_raw,
+                        x_fit_for_window,
+                        as_feature,
+                        self.target_idx,
+                    )
+
+                    y_pred = self.predict(prepared_window, series_idx=series_idx_tensor)
+                    y_pred_target = y_pred[:, :, self.target_idx]
+                    y_pred_res_np = y_pred_target.cpu().numpy().flatten()
+
+                    y_pred_final_np = y_base_chunk + y_pred_res_np
+                    all_forecasts.extend(y_pred_final_np.tolist())
+
+                    steps_generated += self.pred_len
+
+                    new_rows = torch.tensor(
+                        future_feature_rows, dtype=torch.float32, device=self.device
+                    )
+                    new_rows[:, self.target_idx] = torch.tensor(
+                        y_pred_final_np, dtype=torch.float32, device=self.device
+                    )
 
                     next_window = current_window_raw.squeeze(0).clone()
                     next_window = torch.cat([next_window[self.pred_len:], new_rows], dim=0)

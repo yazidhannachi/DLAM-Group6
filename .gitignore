@@ -224,3 +224,4 @@ data/
 nohup*
 
 *submission_template/.nfs00000000088812490000000f
+mlruns/

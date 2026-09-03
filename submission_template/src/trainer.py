@@ -26,6 +26,7 @@ class Trainer:
         # to obtain next pred_len steps (just like in validation), repeating ar_steps times
         # if mode "autoregressive" then the data loader must be configured in such a way that 
         # y contains at least ar_steps*pred_len time steps.
+        # feature_cols is only for arima
         os.makedirs(os.path.join(save_path, "checkpoints"), exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 

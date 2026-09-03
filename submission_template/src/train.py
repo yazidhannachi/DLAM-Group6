@@ -6,6 +6,7 @@ import torch
 import pandas as pd
 import numpy as np
 import mlflow
+import hashlib
 import mlflow.pytorch
 from experiment_tracking import get_git_info, write_git_diff
 
@@ -169,7 +170,16 @@ with mlflow.start_run():
     if model_config.get("hybrid")==True:
         if model_config["prior"] == 'ARIMA':
             base_model = ARIMAWrapper(**model_config["base_model_kwargs"])
-            arima_file_name = f"data/arima_precomputed/arima_{data_config["seq_len"]}_{data_config["pred_len"]}.npz"
+            feature_signature = "|".join(dataset_train.model_cols)
+            feature_hash = hashlib.md5(feature_signature.encode()).hexdigest()[:10]
+
+            prior_signature = str(model_config["base_model_kwargs"])
+            prior_hash = hashlib.md5(prior_signature.encode()).hexdigest()[:10]
+
+            arima_file_name = (
+                f"data/arima_precomputed/"
+                f"arima_{data_config['seq_len']}_{data_config['pred_len']}_{data_config['stride']}_{feature_hash}_{prior_hash}.npz"
+            )
             if os.path.exists(arima_file_name):
                 prec = np.load(arima_file_name)
                 insample_fit = prec["insample_fit"]
