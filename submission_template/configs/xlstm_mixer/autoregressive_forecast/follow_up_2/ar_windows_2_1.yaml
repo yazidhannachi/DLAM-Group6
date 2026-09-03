@@ -49,8 +49,7 @@ training:
   batch_size: 128
   mode: autoregressive
   loss_on: target
-  loss_weighted: True
-  alpha: 0.25
+  loss_weighted: False
   ar_steps: 4
 
 data: 
