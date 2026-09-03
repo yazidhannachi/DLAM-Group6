@@ -48,8 +48,15 @@ class Preprocessor:
             group_y = y.loc[group_x.index]
 
             simple_imputer = SimpleImputer(strategy="constant", fill_value=0)
-            indicator = IMPUTER_REGISTRY["missing"](**self.pp_config.get("indicator_kwargs", {}))
-    
+            indicator_kwargs = self.pp_config.get("indicator_kwargs", {}).copy()
+            # features='missing-only' (the sklearn default) fits a different set of output
+            # columns per series depending on which columns happen to have missing values in
+            # that series. Concatenating per-series outputs with mismatched columns then
+            # introduces NaN for series that lacked a given indicator column. Force 'all' so
+            # every series produces the same indicator columns.
+            indicator_kwargs.setdefault("features", "all")
+            indicator = IMPUTER_REGISTRY["missing"](**indicator_kwargs)
+
             imputer_kwargs = self.pp_config.get("imputer_kwargs", {}).copy()
             if self.pp_config.get("imputer") == "iterative":
                 mice_estimator = ESTIMATOR_REGISTRY[self.pp_config["mice_estimator"]](

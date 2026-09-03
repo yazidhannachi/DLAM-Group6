@@ -67,12 +67,28 @@ class ARIMAWrapper:
         self.seasonal_order = seasonal_order
         self.trend = trend
         self.method = method
+        self.fitted_model = None
+
+    def _fit_one(self, y):
+        """Fit a single ARIMA model on y. Used by both fit() and precompute_offline() so
+        train-time and validation-time residuals always come from the exact same model spec
+        (order, seasonal_order, trend). Fits in float64 - statsmodels converges poorly (or not
+        at all) in float32 - and falls back to the 'statespace' method if the configured one
+        fails to converge."""
+        y = np.asarray(y, dtype=np.float64)
+        model = ARIMA(
+            y, order=self.order, seasonal_order=self.seasonal_order, trend=self.trend,
+            enforce_stationarity=True, enforce_invertibility=True,
+        )
+        try:
+            fitted = model.fit(method=self.method)
+        except Exception:
+            fitted = model.fit(method="statespace")
+        return fitted
 
     def fit(self, y):
-        self.train_target = np.asarray(y, dtype=np.float32)
-
-        model = ARIMA(self.train_target, order=self.order, trend=self.trend)
-        self.fitted_model = model.fit(method=self.method)
+        self.train_target = np.asarray(y, dtype=np.float64)
+        self.fitted_model = self._fit_one(self.train_target)
         return self
 
     def predict_in_sample(self):
@@ -104,16 +120,12 @@ class ARIMAWrapper:
             x_target = dataset.data_x[x_pos, target_idx].numpy()
             y_target = dataset.data_y[y_pos, target_idx].numpy()
 
-            model = ARIMA(x_target, order=self.order, trend=self.trend, seasonal_order=self.seasonal_order, enforce_stationarity=True, enforce_invertibility=True)
-            try:
-                fitted = model.fit(method=self.method)
-            except Exception:
-                fitted = model.fit(method="statespace")
+            fitted = self._fit_one(x_target)
             # in-sample predictions
-            x_fit = fitted.predict(start=0, end=len(x_target)-1)
+            x_fit = np.asarray(fitted.predict(start=0, end=len(x_target)-1), dtype=np.float32)
 
             # future forecast for prediction horizon
-            y_base = fitted.forecast(steps=pred_len)
+            y_base = np.asarray(fitted.forecast(steps=pred_len), dtype=np.float32)
 
             insample_fit[idx] = x_fit
             residual_hist[idx] = x_target - x_fit
@@ -194,8 +206,7 @@ class FourierApprox:
             residual_hist[idx] = x_target - x_fit
             base_forecast[idx] = y_base
             residual_target[idx] = y_target - y_base
-            if n % 100 ==0:
-                progress_bar.update(100)
+            progress_bar.update(1)
         progress_bar.close()
         return insample_fit, residual_hist, base_forecast, residual_target
 
@@ -207,8 +218,17 @@ class xLSTMMixerWrapper(xLSTMMixer):
         self.embedding_dim = embedding_dim
         self.num_series = num_series
         enc_in_new = enc_in + self.embedding_dim
+        # xLSTMMixer's own positional signature is (pred_len, seq_len, enc_in, ...) - the
+        # opposite order from this wrapper's (seq_len, pred_len, enc_in, ...). This call is
+        # intentionally reordered to match the parent, not swapped by mistake. Assert against
+        # the parent's own stored attributes (set via BaseModel.__init__) right away, before
+        # the reassignment below would otherwise mask a real argument-order regression.
         super().__init__(pred_len, seq_len, enc_in_new, **kwargs)
-        #self.model = xLSTMMixer(pred_len, seq_len, enc_in,**kwargs)  
+        assert self.seq_len == seq_len and self.pred_len == pred_len, (
+            f"xLSTMMixer base got seq_len={self.seq_len}, pred_len={self.pred_len} but wrapper "
+            f"expected seq_len={seq_len}, pred_len={pred_len} - argument order mismatch in super().__init__() call"
+        )
+        #self.model = xLSTMMixer(pred_len, seq_len, enc_in,**kwargs)
         self.seq_len = seq_len
         self.pred_len = pred_len
 
@@ -219,6 +239,11 @@ class xLSTMMixerWrapper(xLSTMMixer):
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, series_idx=None, mask=None):
         series_idx = series_idx.detach().clone().to(dtype=torch.long, device=self.device)
+        assert series_idx.max().item() < self.num_series, (
+            f"series_idx contains index {series_idx.max().item()} but the series embedding "
+            f"only has num_series={self.num_series} entries - LabelEncoder produced more "
+            f"distinct series than num_series was set to."
+        )
         emb = self.series_embedding(series_idx)
         emb = self.emb_dropout(emb)
         emb = emb.unsqueeze(1).repeat(1, x_enc.shape[1], 1)
@@ -293,18 +318,81 @@ class xLSTMMixerWrapper(xLSTMMixer):
         progress_bar.close()
         return pred_df
 
-    def predict_autoregressive_tensor(self, x_enc, y, series_idx, target_idx, rollout_steps):
-        context = x_enc
+    def predict_autoregressive_tensor(self, x_enc, y, series_idx, target_idx, rollout_steps,
+                                       base_model=None, as_feature=None, insample_fit=None):
+        """base_model/as_feature/insample_fit are only used for the hybrid case: they let this
+        (used during autoregressive TRAINING) refit the base model at every rollout step, the
+        same way predict_autoregressive_hybrid does during validation/inference. Without this,
+        every step past the first reused CustomDataset's single static fit from the original
+        window, which misaligns train-time and validation-time behavior for the hybrid prior.
+        """
         prediction_list = []
-        for i in range(rollout_steps):
-            predictions = self.predict(context, series_idx=series_idx)
-            prediction_list.append(predictions)
-            idx_start = i*self.pred_len
-            idx_end = (i+1)*self.pred_len
-            y_slice = y[:, idx_start:idx_end, :].clone()
-            y_slice[:,:,target_idx] = predictions[:,:,target_idx]
-            new_context = torch.cat([context, y_slice], dim=1)
-            context = new_context[:,self.pred_len:,:]
+
+        def pad_to_pred_len(y_slice):
+            # Mirror predict_autoregressive's end-of-horizon padding (repeat the last
+            # available future row) instead of silently building a short window.
+            if y_slice.shape[1] < self.pred_len:
+                padding_needed = self.pred_len - y_slice.shape[1]
+                pad_rows = y_slice[:, -1:, :].repeat(1, padding_needed, 1)
+                y_slice = torch.cat([y_slice, pad_rows], dim=1)
+            return y_slice
+
+        if base_model is None:
+            context = x_enc
+            for i in range(rollout_steps):
+                predictions = self.predict(context, series_idx=series_idx)
+                prediction_list.append(predictions)
+                idx_start = i*self.pred_len
+                idx_end = (i+1)*self.pred_len
+                y_slice = pad_to_pred_len(y[:, idx_start:idx_end, :].clone())
+                y_slice[:,:,target_idx] = predictions[:,:,target_idx]
+                new_context = torch.cat([context, y_slice], dim=1)
+                context = new_context[:,self.pred_len:,:]
+        else:
+            # Keep `context` as the RAW window at all times (no appended prior-fit column,
+            # target channel holds genuine absolute values) and let _prepare_hybrid_window
+            # build the augmented model input fresh at every step, exactly like
+            # predict_autoregressive_hybrid does.
+            if as_feature:
+                context = x_enc[:, :, :-1].clone()
+            else:
+                assert insample_fit is not None, (
+                    "insample_fit is required to reconstruct raw target history when "
+                    "as_feature=False, since CustomDataset replaces the target channel with "
+                    "the in-sample residual for the first window."
+                )
+                context = x_enc.clone()
+                context[:, :, target_idx] = context[:, :, target_idx] + insample_fit
+
+            for i in range(rollout_steps):
+                batch_prepared, batch_y_base = [], []
+                for b in range(context.shape[0]):
+                    prepared_window, y_base = self._prepare_hybrid_window(
+                        context[b:b+1], base_model, as_feature, target_idx
+                    )
+                    batch_prepared.append(prepared_window)
+                    batch_y_base.append(y_base)
+
+                prepared_batch = torch.cat(batch_prepared, dim=0)
+                y_base_batch = torch.tensor(
+                    np.stack(batch_y_base), dtype=torch.float32, device=context.device
+                )
+
+                predictions = self.predict(prepared_batch, series_idx=series_idx)
+                prediction_list.append(predictions)
+
+                idx_start = i*self.pred_len
+                idx_end = (i+1)*self.pred_len
+                y_slice = pad_to_pred_len(y[:, idx_start:idx_end, :].clone())
+                # Next window's raw history needs an absolute target value (base forecast +
+                # predicted residual), matching predict_autoregressive_hybrid's
+                # `y_pred_final_np = y_base + y_pred_res_np`, so the base model can be refit
+                # on genuine target history at the next step.
+                y_slice[:,:,target_idx] = y_base_batch + predictions[:,:,target_idx]
+
+                new_context = torch.cat([context, y_slice], dim=1)
+                context = new_context[:,self.pred_len:,:]
+
         combined_preds = torch.cat(prediction_list, dim=1)
         combined_preds = combined_preds[:,:y.shape[1],:]
         return combined_preds

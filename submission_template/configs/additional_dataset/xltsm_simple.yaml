@@ -1,3 +1,5 @@
+experiment: brazilian_weather_xlstm_mixer
+
 preprocessing:
   scaler: "standard"
   scaler_kwargs: {}
@@ -32,7 +34,7 @@ preprocessing:
 model:
   hybrid: False
   model_name: xLSTMMixer
-  model_kwargs: {seq_len: 168, pred_len: 24}
+  model_kwargs: {seq_len: 168, pred_len: 24, num_series: 145}
 
 training:
   val_size: 0.2
@@ -45,9 +47,12 @@ training:
   min_epochs: 10
   max_epochs: 100
   patience: 5
+  loss_on: target
 
 data:
   train_path: "data/brazilian_train.csv"
   save_path: experiments/
   seq_len: 168
   pred_len: 24
+  input: all
+  stride: 12

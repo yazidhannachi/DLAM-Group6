@@ -63,4 +63,4 @@ class CustomDataset(Dataset):
                 y_target[:, self.target_idx] = res_target
 
 
-        return x_enc, y_target, series_idx, y_original_idx
+        return x_enc, y_target, series_idx, y_original_idx, idx

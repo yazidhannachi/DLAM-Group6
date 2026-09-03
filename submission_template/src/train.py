@@ -2,6 +2,7 @@ import yaml
 import random
 import argparse
 import os
+import hashlib
 import torch
 import pandas as pd
 import numpy as np
@@ -131,6 +132,18 @@ with mlflow.start_run():
     df_train_local_clean = pd.concat([X_train_local_clean, y_train_local_clean["target"]], axis=1)
     df_val_local_clean = pd.concat([X_val_local_clean, y_val_local_clean["target"]], axis=1)
 
+    # Guard against NaN silently introduced by the per-series preprocessing (e.g. a
+    # MissingIndicator fit separately per series producing mismatched columns that turn into
+    # NaN on concat). Fail loudly here rather than let it corrupt training downstream.
+    train_nan_cols = df_train_local_clean.columns[df_train_local_clean.isna().any()].tolist()
+    val_nan_cols = df_val_local_clean.columns[df_val_local_clean.isna().any()].tolist()
+    if train_nan_cols:
+        print(f"NaN found in df_train_local_clean columns: {train_nan_cols}")
+    if val_nan_cols:
+        print(f"NaN found in df_val_local_clean columns: {val_nan_cols}")
+    assert df_train_local_clean.isna().sum().sum() == 0, f"Preprocessing introduced NaN in train data, columns: {train_nan_cols}"
+    assert df_val_local_clean.isna().sum().sum() == 0, f"Preprocessing introduced NaN in val data, columns: {val_nan_cols}"
+
     if data_config.get("add_trailing_stats", False):
         df_train_local_clean["target_roll_mean_24"] = (
             df_train_local_clean.groupby("series_id")["target"]
@@ -169,7 +182,27 @@ with mlflow.start_run():
     if model_config.get("hybrid")==True:
         if model_config["prior"] == 'ARIMA':
             base_model = ARIMAWrapper(**model_config["base_model_kwargs"])
-            arima_file_name = f"data/arima_precomputed/arima_{data_config["seq_len"]}_{data_config["pred_len"]}.npz"
+
+            # Cache key must cover every parameter that changes what precompute_offline
+            # produces. Previously only seq_len/pred_len were encoded in the filename, so a
+            # changed stride, ARIMA order/seasonal_order/trend/method, or the ar_steps
+            # multiplication applied to pred_len in autoregressive mode would all silently
+            # reuse a stale cache computed under different settings. Extracting these to local
+            # variables first (rather than indexing dicts inside the f-string) also avoids the
+            # nested-quote f-string that only parses on Python 3.12+.
+            seq_len_eff = data_config["seq_len"]
+            pred_len_eff = dataset_train.pred_len  # already ar_steps-multiplied when relevant
+            stride_eff = data_config["stride"]
+            base_model_kwargs = model_config["base_model_kwargs"]
+            cache_key_source = repr({
+                "seq_len": seq_len_eff,
+                "pred_len": pred_len_eff,
+                "stride": stride_eff,
+                "base_model_kwargs": base_model_kwargs,
+            })
+            cache_key = hashlib.sha256(cache_key_source.encode()).hexdigest()[:12]
+            arima_file_name = f"data/arima_precomputed/arima_{cache_key}.npz"
+
             if os.path.exists(arima_file_name):
                 prec = np.load(arima_file_name)
                 insample_fit = prec["insample_fit"]
@@ -178,14 +211,21 @@ with mlflow.start_run():
                 res_tgt = prec["res_tgt"]
             else:
                 insample_fit, res_hist, base_fc, res_tgt = base_model.precompute_offline(dataset_train)
+                os.makedirs("data/arima_precomputed", exist_ok=True)
                 np.savez(arima_file_name, insample_fit=insample_fit, res_hist=res_hist, base_fc=base_fc, res_tgt=res_tgt)
-            
+
         elif model_config["prior"] == 'Fourier':
             base_model = FourierApprox(**model_config["base_model_kwargs"])
             insample_fit, res_hist, base_fc, res_tgt = base_model.precompute_offline(dataset_train)
         else:
-            raise ValueError("Not a valid prior.")   
-        
+            raise ValueError("Not a valid prior.")
+
+        n_windows = len(dataset_train)
+        assert insample_fit.shape[0] == n_windows, f"insample_fit has {insample_fit.shape[0]} rows but dataset_train has {n_windows} windows"
+        assert res_hist.shape[0] == n_windows, f"res_hist has {res_hist.shape[0]} rows but dataset_train has {n_windows} windows"
+        assert base_fc.shape[0] == n_windows, f"base_fc has {base_fc.shape[0]} rows but dataset_train has {n_windows} windows"
+        assert res_tgt.shape[0] == n_windows, f"res_tgt has {res_tgt.shape[0]} rows but dataset_train has {n_windows} windows"
+
         dataset_train.insample_fit = insample_fit
         dataset_train.residual_hist = res_hist
         dataset_train.base_forecast = base_fc
@@ -205,6 +245,13 @@ with mlflow.start_run():
 
     model_config["model_kwargs"].update({"enc_in": enc_in})
     mlflow.log_param("model_kwargs.enc_in", enc_in)
+
+    # num_series defaults to 96 inside xLSTMMixerWrapper - inject the real count from the
+    # fitted LabelEncoder instead, the same way enc_in is injected above, so the series
+    # embedding always has enough rows for every distinct series_id actually seen.
+    num_series = len(series_encoder.classes_)
+    model_config["model_kwargs"].update({"num_series": num_series})
+    mlflow.log_param("model_kwargs.num_series", num_series)
     model_builder = ModelBuilder(model_config)
     model = model_builder.build()
 
@@ -212,14 +259,18 @@ with mlflow.start_run():
     optimizer = OPTIMIZER_REGISTRY[training_config["optimizer"]](model.parameters(), **training_config["optimizer_kwargs"])
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, min_lr=1e-7)
 
+    max_norm = training_config.get("max_norm", 1.0)
+    mlflow.log_param("training.max_norm", max_norm)
+
     as_feature = model_config.get("prior_as_feature", None)
     trainer = Trainer(model, optimizer, criterion, scheduler, base_model=base_model, as_feature=as_feature)
-    best_model_path = trainer.fit(save_dir, train_loader, df_train_local_clean, df_val_local_clean, 
-                                loss_on=training_config["loss_on"], loss_weighted=training_config.get("loss_weighted",False), 
+    best_model_path = trainer.fit(save_dir, train_loader, df_train_local_clean, df_val_local_clean,
+                                loss_on=training_config["loss_on"], loss_weighted=training_config.get("loss_weighted",False),
                                 mode=training_config["mode"], alpha=training_config.get("alpha", None),
-                                ar_steps=training_config["ar_steps"], min_epochs=training_config["min_epochs"], 
+                                ar_steps=training_config["ar_steps"], min_epochs=training_config["min_epochs"],
                                 max_epochs=training_config["max_epochs"], patience=training_config["patience"],
-                                grad_acc=training_config.get("grad_acc", False), grad_acc_steps=training_config.get("grad_acc_steps", None))
+                                grad_acc=training_config.get("grad_acc", False), grad_acc_steps=training_config.get("grad_acc_steps", None),
+                                max_norm=max_norm)
 
     mlflow.log_artifact(best_model_path, artifact_path="checkpoints")
     model.load_state_dict(torch.load(best_model_path))
@@ -272,8 +323,8 @@ with mlflow.start_run():
     )
     metrics_df.to_csv(os.path.join(save_dir, "metrics.csv"))
 
-    mlflow.log_metric("val_MSE_rescaled", metrics_df["MSE"].values)
-    mlflow.log_metric("val_MAE_rescaled", metrics_df["MAE"].values)
+    mlflow.log_metric("val_MSE_rescaled", metrics_df["MSE"].item())
+    mlflow.log_metric("val_MAE_rescaled", metrics_df["MAE"].item())
 
     #model.fit(df_train_local_clean, df_val_local_clean, save_dir)
     #model.save(os.path.join(save_dir, model_config["save_name"]))
