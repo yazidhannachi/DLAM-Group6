@@ -1,9 +1,9 @@
 experiment: autoregressive_forecast
-seed: 13
+seed: 11
 shared:
   seq_len: &seq_len 720
-  pred_len: &pred_len 12
-  criterion: &criterion "Huber"
+  pred_len: &pred_len 4
+  criterion: &criterion "MSE"
 
 preprocessing:
   scaler: "standard"
@@ -48,13 +48,12 @@ training:
   batch_size: 128
   mode: autoregressive
   loss_on: target
-  loss_weighted: True
-  alpha: 0.25
   ar_steps: 4
 
 data: 
-  input: all
   seq_len: *seq_len
   pred_len: *pred_len
   stride: 12
   save_path: experiments/
+  input: all
+  add_trailing_stats: True

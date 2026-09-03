@@ -1,8 +1,8 @@
 experiment: autoregressive_forecast
-
+seed: 11
 shared:
   seq_len: &seq_len 720
-  pred_len: &pred_len 8
+  pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
 preprocessing:
@@ -49,7 +49,7 @@ training:
   mode: autoregressive
   loss_on: target
   loss_weighted: True
-  alpha: 1.0
+  alpha: 0.25
   ar_steps: 4
 
 data: 

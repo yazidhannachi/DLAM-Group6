@@ -1,4 +1,5 @@
 experiment: autoregressive_forecast
+seed: 11
 
 shared:
   seq_len: &seq_len 720

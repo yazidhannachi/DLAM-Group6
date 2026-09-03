@@ -1,8 +1,8 @@
 experiment: autoregressive_forecast
-seed: 12
+seed: 13
 shared:
   seq_len: &seq_len 720
-  pred_len: &pred_len 6
+  pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
 preprocessing:
@@ -35,6 +35,7 @@ preprocessing:
     #- "maintenance_known"
 model: 
   hybrid: False
+  base_model_kwargs: null
   model_name: xLSTMMixer
   model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}
   

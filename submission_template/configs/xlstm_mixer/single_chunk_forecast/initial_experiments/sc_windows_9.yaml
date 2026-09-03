@@ -2,7 +2,7 @@ experiment: single_chunk_forecast
 
 shared:
   seq_len: &seq_len 336
-  pred_len: &pred_len 24
+  pred_len: &pred_len 48
   criterion: &criterion "Huber"
 
 preprocessing:

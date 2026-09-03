@@ -1,8 +1,8 @@
 experiment: single_chunk_forecast
 
 shared:
-  seq_len: &seq_len 96
-  pred_len: &pred_len 24
+  seq_len: &seq_len 1440
+  pred_len: &pred_len 12
   criterion: &criterion "Huber"
 
 preprocessing:
@@ -51,8 +51,10 @@ training:
   ar_steps: 0
 
 data: 
-  input: all
   seq_len: *seq_len
   pred_len: *pred_len
   stride: 12
   save_path: experiments/
+  input: all
+
+# experiment with target loss only 

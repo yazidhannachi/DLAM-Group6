@@ -1,8 +1,9 @@
 experiment: autoregressive_forecast
+seed: 11
 
 shared:
-  seq_len: &seq_len 720
-  pred_len: &pred_len 6
+  seq_len: &seq_len 1440
+  pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
 preprocessing:

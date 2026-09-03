@@ -1,8 +1,8 @@
 experiment: autoregressive_forecast
 seed: 11
 shared:
-  seq_len: &seq_len 720
-  pred_len: &pred_len 8
+  seq_len: &seq_len 336
+  pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
 preprocessing:
@@ -34,16 +34,27 @@ preprocessing:
   #convert_to_categorical:
     #- "maintenance_known"
 model: 
-  hybrid: False
+  hybrid: True
   prior: ARIMA
   prior_as_feature: False
-  base_model_kwargs: {order: [1,0,1], seasonal_order: [1,0,1,24], trend: 'n', method: 'innovations_mle'}
+  base_model_kwargs: 
+    order: [1,0,0]
+    seasonal_order: [1,0,0,24]
+    trend: 'n'
+    method: 'lbfgs'
+    exog_feature_names:
+      - queue_pressure_forecast
+      - event_load_forecast
+      - network_pressure_forecast
+      - demand_forecast
+      - shock_risk
+
   model_name: xLSTMMixer
   model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}
   
 training: 
   optimizer: Adam
-  optimizer_kwargs: {lr: 0.001, weight_decay: 0}
+  optimizer_kwargs: {lr: 0.0005, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion

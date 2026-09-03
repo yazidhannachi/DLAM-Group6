@@ -1,8 +1,9 @@
 experiment: autoregressive_forecast
+seed: 11
 
 shared:
-  seq_len: &seq_len 168
-  pred_len: &pred_len 1
+  seq_len: &seq_len 1440
+  pred_len: &pred_len 8
   criterion: &criterion "Huber"
 
 preprocessing:
@@ -56,6 +57,3 @@ data:
   stride: 12
   save_path: experiments/
   input: all
-
-
-# experiment with target loss only 
