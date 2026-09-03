@@ -1,0 +1,77 @@
+data:
+  input: all
+  pred_len: 8
+  save_path: experiments/
+  seq_len: 720
+  stride: 24
+experiment: autoregressive_forecast
+model:
+  base_model_kwargs:
+    method: innovations_mle
+    order:
+    - 1
+    - 0
+    - 1
+    seasonal_order:
+    - 1
+    - 0
+    - 1
+    - 24
+    trend: n
+  hybrid: true
+  model_kwargs:
+    kwargs:
+      xlstm_dropout: 0
+      xlstm_num_blocks: 1
+      xlstm_num_heads: 8
+    pred_len: 8
+    seq_len: 720
+  model_name: xLSTMMixer
+  prior: ARIMA
+  prior_as_feature: false
+preprocessing:
+  imputer: iterative
+  imputer_kwargs:
+    max_iter: 30
+  indicator_kwargs: {}
+  mice_estimator: ridge
+  mice_estimator_kwargs:
+    alpha: 1
+  missing_indicator_columns: []
+  other_impute_columns:
+  - demand_forecast
+  - upstream_quality_forecast
+  - shock_risk
+  - unit_reliability_forecast
+  - queue_pressure_forecast
+  - network_pressure_forecast
+  - event_load_forecast
+  - service_irregularity_risk_forecast
+  - throughput_disruption_risk_forecast
+  scale_columns:
+  - trend
+  - workload_intensity
+  - promotion_intensity
+  - maintenance_known
+  scaler: standard
+  scaler_kwargs: {}
+  simple_impute_columns:
+  - staffing_forecast
+seed: 11
+shared:
+  criterion: Huber
+  pred_len: 8
+  seq_len: 720
+training:
+  ar_steps: 4
+  batch_size: 128
+  criterion: Huber
+  loss_on: target
+  max_epochs: 100
+  min_epochs: 5
+  mode: autoregressive
+  optimizer: Adam
+  optimizer_kwargs:
+    lr: 0.001
+    weight_decay: 0
+  patience: 5
