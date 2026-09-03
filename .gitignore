@@ -222,4 +222,9 @@ data/
 *.pt
 .DS_Store
 nohup*
+<<<<<<< HEAD
 data_brazilian/
+=======
+
+*submission_template/.nfs00000000088812490000000f
+>>>>>>> origin/xlstm-mixer-experiments
