@@ -109,7 +109,7 @@ with mlflow.start_run():
 
         train_dfs.append(group.iloc[:-336]) # 336 because that is how much we are supposed to predict on the actual validation set for each series
 
-        val_start = max(0, n - 336 - seq_len)
+        val_start = max(0, n - 336)
         val_dfs.append(group.iloc[val_start:])
 
     df_train_local = pd.concat(train_dfs, axis=0)
@@ -119,24 +119,6 @@ with mlflow.start_run():
     df_train_local['series_idx'] = series_encoder.fit_transform(df_train_local['series_id'])
     df_val_local['series_idx'] = series_encoder.transform(df_val_local['series_id'])
     df_val['series_idx'] = series_encoder.transform(df_val['series_id'])
-
-    if data_config.get("add_trailing_stats", False):
-        df_train_local["target_roll_mean_24"] = (
-            df_train_local.groupby("series_id")["target"]
-            .transform(lambda s: s.rolling(window=24, min_periods=1).mean())
-        )
-        df_val_local["target_roll_mean_24"] = (
-        df_val_local.groupby("series_id")["target"]
-        .transform(lambda s: s.rolling(window=24, min_periods=1).mean())
-        )
-        df_train_local["target_roll_std_24"] = (
-            df_train_local.groupby("series_id")["target"]
-            .transform(lambda s: s.rolling(window=24, min_periods=1).std())
-        )
-        df_val_local["target_roll_std_24"] = (
-        df_val_local.groupby("series_id")["target"]
-        .transform(lambda s: s.rolling(window=24, min_periods=1).std())
-        )
 
     X_train_local = df_train_local.drop(columns=["target"])
     y_train_local = df_train_local[['series_id', "target"]]
@@ -148,6 +130,24 @@ with mlflow.start_run():
     X_val_local_clean, y_val_local_clean = preprocessor.transform(X_val_local, y_val_local)
     df_train_local_clean = pd.concat([X_train_local_clean, y_train_local_clean["target"]], axis=1)
     df_val_local_clean = pd.concat([X_val_local_clean, y_val_local_clean["target"]], axis=1)
+
+    if data_config.get("add_trailing_stats", False):
+        df_train_local_clean["target_roll_mean_24"] = (
+            df_train_local_clean.groupby("series_id")["target"]
+            .transform(lambda s: s.rolling(window=24, min_periods=1).mean())
+        )
+        df_val_local_clean["target_roll_mean_24"] = (
+        df_val_local_clean.groupby("series_id")["target"]
+        .transform(lambda s: s.rolling(window=24, min_periods=1).mean())
+        )
+        df_train_local["target_roll_std_24"] = (
+            df_train_local_clean.groupby("series_id")["target"]
+            .transform(lambda s: s.rolling(window=24, min_periods=1).std(ddof=0))
+        )
+        df_val_local["target_roll_std_24"] = (
+        df_val_local_clean.groupby("series_id")["target"]
+        .transform(lambda s: s.rolling(window=24, min_periods=1).std(ddof=0))
+        )
 
     if data_config["input"] == "target_only":
         keep_cols = ["series_id", "series_idx", "timestamp", "target"]

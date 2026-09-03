@@ -68,6 +68,23 @@ class ARIMAWrapper:
         self.trend = trend
         self.method = method
 
+    def fit(self, y):
+        self.train_target = np.asarray(y, dtype=np.float32)
+
+        model = ARIMA(self.train_target, order=self.order, trend=self.trend)
+        self.fitted_model = model.fit(method=self.method)
+        return self
+
+    def predict_in_sample(self):
+        if self.fitted_model is None:
+            raise RuntimeError("ARIMAWrapper must be fit before calling predict_in_sample().")
+        return np.asarray(self.fitted_model.predict(start=0, end=len(self.train_target)-1),dtype=np.float32)
+
+    def predict_future(self, steps):
+        if self.fitted_model is None:
+            raise RuntimeError("ARIMAWrapper must be fit before calling predict_future().")
+        return np.asarray(self.fitted_model.forecast(steps=steps),dtype=np.float32)
+
     def precompute_offline(self,dataset):
         n = len(dataset)
         seq_len = dataset.seq_len
@@ -223,7 +240,6 @@ class xLSTMMixerWrapper(xLSTMMixer):
         feature_cols = [c for c in history_df.columns if c not in ignore_cols]
     
         self.target_idx = feature_cols.index("target")
-
         pred_df = df_val.copy()
         pred_df['target'] = np.nan
 
@@ -321,6 +337,10 @@ class xLSTMMixerWrapper(xLSTMMixer):
         feature_cols = [c for c in history_df.columns if c not in ignore_cols]
         target_idx = feature_cols.index("target")
         self.target_idx = target_idx
+
+        for series_id, group in df_val.groupby("series_id"):
+            print(series_id, len(group))
+            break
 
         pred_df = df_val.copy()
         pred_df["target"] = np.nan
