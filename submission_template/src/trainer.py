@@ -20,7 +20,7 @@ class Trainer:
         self.loss_tracker = []
         self.vloss_tracker = []
 
-    def fit(self, save_path, train_loader, df_train, df_val, loss_on='target', loss_weighted=False, alpha=None, mode='single_forecast', ar_steps=None, min_epochs=30, max_epochs=100, patience=10, grad_acc=False, grad_acc_steps=None):
+    def fit(self, save_path, train_loader, df_train, df_val, loss_on='target', loss_weighted=False, alpha=None, mode='single_forecast', ar_steps=None, min_epochs=30, max_epochs=100, patience=10, grad_acc=False, grad_acc_steps=None, feature_cols=None):
         # mode single_forecast means we only use the direct output of xLSTM-Mixer (exactly pred_len steps) to compute training loss
         # mode "autoregressive" means we use xLSTM-Mixer predict pred_len steps, then autoregressively feed predictions back into model
         # to obtain next pred_len steps (just like in validation), repeating ar_steps times
@@ -49,7 +49,7 @@ class Trainer:
                 if mode=='single_forecast':
                     predictions = self.model.predict(x_enc, series_idx)
                 elif mode=='autoregressive':
-                    predictions = self.model.predict_autoregressive_tensor(x_enc, y, series_idx, target_idx, ar_steps)
+                    predictions = self.model.predict_autoregressive_tensor(x_enc, y, series_idx, target_idx, ar_steps, base_model=self.base_model, as_feature=self.as_feature, feature_cols=feature_cols)
 
                 if loss_on=='all':
                     loss = self.criterion(predictions[:,:,:y.shape[-1]], y)
@@ -143,3 +143,81 @@ class Trainer:
         plt.xlabel("epoch")
         plt.legend()
         plt.savefig(os.path.join(save_path, "loss.png"), format='PNG')
+
+    def fit_full_data(self, save_path, train_loader, loss_on='target', loss_weighted=False, alpha=None, mode='single_forecast', ar_steps=None, num_epochs=0 , grad_acc=False, grad_acc_steps=None):
+            # mode single_forecast means we only use the direct output of xLSTM-Mixer (exactly pred_len steps) to compute training loss
+            # mode "autoregressive" means we use xLSTM-Mixer predict pred_len steps, then autoregressively feed predictions back into model
+            # to obtain next pred_len steps (just like in validation), repeating ar_steps times
+            # if mode "autoregressive" then the data loader must be configured in such a way that 
+            # y contains at least ar_steps*pred_len time steps.
+            # feature_cols is only for arima
+            os.makedirs(os.path.join(save_path, "checkpoints"), exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+            target_idx = train_loader.dataset.target_idx
+    
+            for epoch in range(num_epochs):
+                self.model.train()
+                running_loss = 0.0
+                progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=True)
+                if grad_acc:
+                    self.optimizer.zero_grad(set_to_none=True)
+                for i, batch in enumerate(train_loader):
+                    x_enc, y, series_idx, _ = batch
+                    x_enc = x_enc.to(self.device)
+                    y = y.to(self.device)
+                    if grad_acc == False:
+                        self.optimizer.zero_grad(set_to_none=True)
+                    if mode=='single_forecast':
+                        predictions = self.model.predict(x_enc, series_idx)
+                    elif mode=='autoregressive':
+                        predictions = self.model.predict_autoregressive_tensor(x_enc, y, series_idx, target_idx, ar_steps)
+    
+                    if loss_on=='all':
+                        loss = self.criterion(predictions[:,:,:y.shape[-1]], y)
+                    elif loss_on=='target':
+                        if loss_weighted==True:
+                            self.criterion.reduction = 'none'
+                            loss = self.criterion(predictions[:,:,target_idx], y[:,:,target_idx])
+                            weights = 1.0 + alpha * torch.abs(y[:,:,target_idx])
+                            loss = (weights * loss).sum() / weights.sum()
+                        else:
+                            loss = self.criterion(predictions[:,:,target_idx], y[:,:,target_idx])
+    
+                    running_loss += loss.item()
+
+                    if grad_acc == True:
+                        loss = loss/grad_acc_steps
+                        loss.backward()
+                        if ((i + 1) % grad_acc_steps == 0) or (i + 1 == len(train_loader)):
+                            self.optimizer.step()
+                            self.optimizer.zero_grad(set_to_none=True)
+                    else:
+                        loss.backward()
+                        self.optimizer.step()
+                    
+                    if i % 50 == 0 or i==(len(train_loader)-1):
+                        step = i % 50 if (i == len(train_loader) and i % 50 != 0) else 50
+                        progress_bar.set_postfix({"loss": f"{running_loss / (i+1):.4f}"})
+                        progress_bar.update(step)
+
+                    self.criterion.reduction='mean'
+    
+                self.loss_tracker.append(running_loss/len(train_loader))
+    
+                progress_bar.close()
+    
+                if self.scheduler is not None:
+                    self.scheduler.step()
+    
+                print("Current lr:", self.optimizer.param_groups[0]["lr"])
+    
+                mlflow.log_metric("train_loss", running_loss / len(train_loader), step=epoch)
+                mlflow.log_metric("lr", self.optimizer.param_groups[0]["lr"], step=epoch) 
+                
+                model_path = os.path.join(save_path, "checkpoints", f'model_{timestamp}_{epoch}')
+                self.final_model_path = model_path
+                torch.save(self.model.state_dict(), model_path)
+                mlflow.log_artifact(self.final_model_path, artifact_path="checkpoints")
+                
+            return self.final_model_path
