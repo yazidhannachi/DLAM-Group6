@@ -43,7 +43,7 @@ model:
   
 training: 
   optimizer: AdamW
-  optimizer_kwargs: {lr: 0.003, weight_decay: 0.001}
+  optimizer_kwargs: {lr: 0.003, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion

@@ -39,16 +39,18 @@ model:
   prior_as_feature: True
   base_model_kwargs: {cutoff: 10}
   model_name: xLSTMMixer
-  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 16, xlstm_num_blocks: 1, xlstm_dropout: 0}}
+  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 16, xlstm_num_blocks: 2, xlstm_dropout: 0}}
   
 training: 
   optimizer: AdamW
-  optimizer_kwargs: {lr: 0.003, weight_decay: 0.001}
+  optimizer_kwargs: {lr: 0.003, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion
   patience: 5
-  batch_size: 128
+  grad_acc: True
+  grad_acc_steps: 4
+  batch_size: 32
   mode: autoregressive
   loss_on: target
   ar_steps: 4

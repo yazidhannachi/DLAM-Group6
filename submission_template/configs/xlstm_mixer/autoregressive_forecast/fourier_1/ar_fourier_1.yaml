@@ -36,7 +36,7 @@ preprocessing:
 model: 
   hybrid: True
   prior: Fourier
-  prior_as_feature: False
+  prior_as_feature: True
   base_model_kwargs: {cutoff: 10}
   model_name: xLSTMMixer
   model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}

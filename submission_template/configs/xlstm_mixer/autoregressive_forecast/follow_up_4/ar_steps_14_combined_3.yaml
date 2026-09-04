@@ -34,24 +34,25 @@ preprocessing:
   #convert_to_categorical:
     #- "maintenance_known"
 model: 
-  hybrid: True
-  prior: Fourier
-  prior_as_feature: True
-  base_model_kwargs: {cutoff: 10}
+  hybrid: False
+  base_model_kwargs: null
   model_name: xLSTMMixer
-  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 16, xlstm_num_blocks: 1, xlstm_dropout: 0}}
+  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}
   
 training: 
-  optimizer: AdamW
+  optimizer: Adam
   optimizer_kwargs: {lr: 0.003, weight_decay: 0.001}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion
   patience: 5
-  batch_size: 128
+  batch_size: 32
+  grad_acc: True
+  grad_acc_steps: 4
   mode: autoregressive
   loss_on: target
-  ar_steps: 4
+  loss_weighted: False
+  ar_steps: 14
 
 data: 
   input: all

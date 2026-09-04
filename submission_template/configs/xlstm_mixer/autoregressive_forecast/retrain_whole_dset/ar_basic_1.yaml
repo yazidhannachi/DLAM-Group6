@@ -1,7 +1,8 @@
 experiment: autoregressive_forecast
 seed: 11
+
 shared:
-  seq_len: &seq_len 720
+  seq_len: &seq_len 336
   pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
@@ -34,16 +35,15 @@ preprocessing:
   #convert_to_categorical:
     #- "maintenance_known"
 model: 
-  hybrid: True
-  prior: Fourier
-  prior_as_feature: True
-  base_model_kwargs: {cutoff: 10}
+  hybrid: False
   model_name: xLSTMMixer
-  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 16, xlstm_num_blocks: 1, xlstm_dropout: 0}}
+  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}
   
 training: 
-  optimizer: AdamW
-  optimizer_kwargs: {lr: 0.003, weight_decay: 0.001}
+  milestones: []
+  num_epochs: 5
+  optimizer: Adam
+  optimizer_kwargs: {lr: 0.003, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion
@@ -54,8 +54,10 @@ training:
   ar_steps: 4
 
 data: 
-  input: all
   seq_len: *seq_len
   pred_len: *pred_len
   stride: 12
   save_path: experiments/
+  input: all
+
+# experiment with target loss only 
