@@ -1,7 +1,7 @@
 experiment: autoregressive_forecast
 seed: 11
 shared:
-  seq_len: &seq_len 720
+  seq_len: &seq_len 336
   pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
@@ -36,7 +36,7 @@ preprocessing:
 model: 
   hybrid: True
   prior: ARIMA
-  prior_as_feature: True
+  prior_as_feature: False
   base_model_kwargs: 
     order: [1,0,0]
     seasonal_order: [1,0,0,24]

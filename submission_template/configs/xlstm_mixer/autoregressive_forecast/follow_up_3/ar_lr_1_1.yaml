@@ -2,7 +2,7 @@ experiment: autoregressive_forecast
 seed: 12
 shared:
   seq_len: &seq_len 720
-  pred_len: &pred_len 8
+  pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
 preprocessing:
@@ -35,19 +35,21 @@ preprocessing:
     #- "maintenance_known"
 model: 
   hybrid: False
+  base_model_kwargs: null
   model_name: xLSTMMixer
   model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}
   
 training: 
   optimizer: Adam
-  optimizer_kwargs: {lr: 0.003, weight_decay: 0}
+  optimizer_kwargs: {lr: 0.005, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion
   patience: 5
   batch_size: 128
   mode: autoregressive
-  loss_on: all
+  loss_on: target
+  loss_weighted: False
   ar_steps: 4
 
 data: 

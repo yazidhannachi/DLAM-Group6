@@ -36,7 +36,7 @@ preprocessing:
 model: 
   hybrid: True
   prior: ARIMA
-  prior_as_feature: True
+  prior_as_feature: False
   base_model_kwargs: 
     order: [1,0,0]
     seasonal_order: [1,0,0,24]

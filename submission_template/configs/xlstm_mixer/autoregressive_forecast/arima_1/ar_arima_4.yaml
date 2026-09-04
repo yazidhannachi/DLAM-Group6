@@ -1,7 +1,7 @@
 experiment: autoregressive_forecast
 seed: 11
 shared:
-  seq_len: &seq_len 720
+  seq_len: &seq_len 336
   pred_len: &pred_len 4
   criterion: &criterion "Huber"
 
@@ -54,7 +54,7 @@ model:
   
 training: 
   optimizer: Adam
-  optimizer_kwargs: {lr: 0.0005, weight_decay: 0}
+  optimizer_kwargs: {lr: 0.003, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion

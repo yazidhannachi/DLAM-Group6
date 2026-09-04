@@ -34,32 +34,20 @@ preprocessing:
   #convert_to_categorical:
     #- "maintenance_known"
 model: 
-  hybrid: True
-  prior: ARIMA
-  prior_as_feature: True
-  base_model_kwargs: 
-    order: [1,0,0]
-    seasonal_order: [1,0,0,24]
-    trend: 'n'
-    method: 'lbfgs'
-    exog_feature_names:
-      - queue_pressure_forecast
-      - event_load_forecast
-      - network_pressure_forecast
-      - demand_forecast
-      - shock_risk
-
+  hybrid: False
   model_name: xLSTMMixer
-  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 8, xlstm_num_blocks: 1, xlstm_dropout: 0}}
+  model_kwargs: {seq_len: *seq_len, pred_len: *pred_len, kwargs: {xlstm_num_heads: 4, xlstm_num_blocks: 2, xlstm_dropout: 0}}
   
 training: 
-  optimizer: Adam
-  optimizer_kwargs: {lr: 0.0005, weight_decay: 0}
+  optimizer: AdamW
+  optimizer_kwargs: {lr: 0.003, weight_decay: 0}
   max_epochs: 100
   min_epochs: 5
   criterion: *criterion
   patience: 5
-  batch_size: 128
+  batch_size: 32
+  grad_acc: True
+  grad_acc_steps: 4
   mode: autoregressive
   loss_on: target
   ar_steps: 4
@@ -68,5 +56,5 @@ data:
   input: all
   seq_len: *seq_len
   pred_len: *pred_len
-  stride: 48
+  stride: 12
   save_path: experiments/
