@@ -141,11 +141,11 @@ with mlflow.start_run():
         df_val_local_clean.groupby("series_id")["target"]
         .transform(lambda s: s.rolling(window=24, min_periods=1).mean())
         )
-        df_train_local["target_roll_std_24"] = (
+        df_train_local_clean["target_roll_std_24"] = (
             df_train_local_clean.groupby("series_id")["target"]
             .transform(lambda s: s.rolling(window=24, min_periods=1).std(ddof=0))
         )
-        df_val_local["target_roll_std_24"] = (
+        df_val_local_clean["target_roll_std_24"] = (
         df_val_local_clean.groupby("series_id")["target"]
         .transform(lambda s: s.rolling(window=24, min_periods=1).std(ddof=0))
         )
@@ -229,7 +229,7 @@ with mlflow.start_run():
                                 mode=training_config["mode"], alpha=training_config.get("alpha", None),
                                 ar_steps=training_config["ar_steps"], min_epochs=training_config["min_epochs"], 
                                 max_epochs=training_config["max_epochs"], patience=training_config["patience"],
-                                grad_acc=training_config.get("grad_acc", False), grad_acc_steps=training_config.get("grad_acc_steps", None))
+                                grad_acc=training_config.get("grad_acc", False), grad_acc_steps=training_config.get("grad_acc_steps", None), feature_cols=model_cols)
 
     mlflow.log_artifact(best_model_path, artifact_path="checkpoints")
     model.load_state_dict(torch.load(best_model_path))
