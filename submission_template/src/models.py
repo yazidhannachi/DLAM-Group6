@@ -156,6 +156,7 @@ class FourierApprox:
         #y_ = y.values
         self.train_spectrum = np.fft.fft(y, norm='ortho')
         self.freqs = np.fft.fftfreq(self.N)
+        return self
 
     def _get_exog_indices(self, feature_names, target_idx):
         return []
@@ -317,18 +318,93 @@ class xLSTMMixerWrapper(xLSTMMixer):
         progress_bar.close()
         return pred_df
 
-    def predict_autoregressive_tensor(self, x_enc, y, series_idx, target_idx, rollout_steps):
-        context = x_enc
+    def predict_autoregressive_tensor(self, x_enc, y, series_idx, target_idx, rollout_steps,
+                                    base_model=None, as_feature=None, insample_fit=None, feature_cols=None):
         prediction_list = []
-        for i in range(rollout_steps):
-            predictions = self.predict(context, series_idx=series_idx)
-            prediction_list.append(predictions)
-            idx_start = i*self.pred_len
-            idx_end = (i+1)*self.pred_len
-            y_slice = y[:, idx_start:idx_end, :].clone()
-            y_slice[:,:,target_idx] = predictions[:,:,target_idx]
-            new_context = torch.cat([context, y_slice], dim=1)
-            context = new_context[:,self.pred_len:,:]
+
+        def pad_to_pred_len(y_slice):
+            # Mirror predict_autoregressive's end-of-horizon padding (repeat the last
+            # available future row) instead of silently building a short window.
+            if y_slice.shape[1] < self.pred_len:
+                padding_needed = self.pred_len - y_slice.shape[1]
+                pad_rows = y_slice[:, -1:, :].repeat(1, padding_needed, 1)
+                y_slice = torch.cat([y_slice, pad_rows], dim=1)
+            return y_slice
+        if base_model is None:
+            context = x_enc
+            for i in range(rollout_steps):
+                predictions = self.predict(context, series_idx=series_idx)
+                prediction_list.append(predictions)
+                idx_start = i*self.pred_len
+                idx_end = (i+1)*self.pred_len
+                y_slice = pad_to_pred_len(y[:, idx_start:idx_end, :].clone())
+                y_slice[:,:,target_idx] = predictions[:,:,target_idx]
+                new_context = torch.cat([context, y_slice], dim=1)
+                context = new_context[:,self.pred_len:,:]
+        else:
+            if as_feature:
+                context = x_enc[:, :, :-1].clone()
+            else:
+                assert insample_fit is not None, (
+                    "insample_fit is required to reconstruct raw target history when "
+                    "as_feature=False, since CustomDataset replaces the target channel with "
+                    "the in-sample residual for the first window."
+                )
+                context = x_enc.clone()
+                context[:, :, target_idx] = context[:, :, target_idx] + insample_fit
+
+            if feature_cols is None:
+                raise RuntimeError(
+                    "feature_cols must be provided for hybrid autoregressive training."
+                )
+
+            exog_indices = base_model._get_exog_indices(feature_cols, target_idx)
+
+            for i in range(rollout_steps):
+                idx_start = i * self.pred_len
+                idx_end = (i + 1) * self.pred_len
+                y_slice = pad_to_pred_len(y[:, idx_start:idx_end, :].clone())
+
+                batch_prepared, batch_y_base = [], []
+
+                for b in range(context.shape[0]):
+                    raw_window = context[b:b+1].squeeze(0).detach().cpu().numpy().copy()
+                    target_hist = raw_window[:, target_idx]
+
+                    if len(exog_indices) > 0:
+                        exog_hist = raw_window[:, exog_indices]
+                        exog_future = y_slice[b, :, exog_indices].detach().cpu().numpy()
+                    else:
+                        exog_hist = None
+                        exog_future = None
+
+                    base_model.fit(target_hist, exog=exog_hist)
+                    x_fit = base_model.predict_in_sample()
+                    y_base = base_model.predict_future(self.pred_len, exog_future=exog_future)
+
+                    prepared_window = self._prepare_hybrid_window(
+                        context[b:b+1],
+                        x_fit,
+                        as_feature,
+                        target_idx
+                    )
+
+                    batch_prepared.append(prepared_window)
+                    batch_y_base.append(y_base)
+
+                prepared_batch = torch.cat(batch_prepared, dim=0)
+                y_base_batch = torch.tensor(
+                    np.stack(batch_y_base), dtype=torch.float32, device=context.device
+                )
+
+                predictions = self.predict(prepared_batch, series_idx=series_idx)
+                prediction_list.append(predictions)
+
+                y_slice[:, :, target_idx] = y_base_batch + predictions[:, :, target_idx]
+
+                new_context = torch.cat([context, y_slice], dim=1)
+                context = new_context[:, self.pred_len:, :]
+
         combined_preds = torch.cat(prediction_list, dim=1)
         combined_preds = combined_preds[:,:y.shape[1],:]
         return combined_preds
